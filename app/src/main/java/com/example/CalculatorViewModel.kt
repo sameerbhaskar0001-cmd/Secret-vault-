@@ -4814,186 +4814,61 @@ val downloads: StateFlow<List<DownloadTask>> = _downloads.asStateFlow()
         activeDownloadConnections.remove(taskId)?.let { try { it.disconnect() } catch (e: Exception) {} }
         
         val job = viewModelScope.launch(Dispatchers.IO) {
-            var fileOutputStream: java.io.OutputStream? = null
-            var inputStream: java.io.InputStream? = null
-            var connection: java.net.HttpURLConnection? = null
             try {
-                var currentUrl = url
-                var append = false
-                var startByte = if (isResume && partFile.exists() && partFile.length() > 0) partFile.length() else 0L
-                var responseCode = -1
-                var connectAttempts = 0
-                val defaultUa = "Mozilla/5.0 (Android 14; Mobile; rv:120.0) Gecko/120.0 Firefox/120.0"
-                val effectiveUa = if (userAgent.isNotBlank()) userAgent else defaultUa
-
-                while (connectAttempts < 5) {
-                    val urlObj = java.net.URL(currentUrl)
-                    connection = urlObj.openConnection() as java.net.HttpURLConnection
-                    activeDownloadConnections[taskId] = connection
-                    connection.instanceFollowRedirects = true
-                    connection.connectTimeout = 25000
-                    connection.readTimeout = 40000
-                    
-                    // Maintain authentic GeckoView User-Agent across all connections and redirects
-                    connection.setRequestProperty("User-Agent", effectiveUa)
-                    connection.setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,video/*,audio/*,*/*;q=0.8")
-                    connection.setRequestProperty("Accept-Language", "en-US,en;q=0.9")
-                    connection.setRequestProperty("Accept-Encoding", "identity")
-                    connection.setRequestProperty("Sec-Fetch-Dest", "document")
-                    connection.setRequestProperty("Sec-Fetch-Mode", "navigate")
-                    connection.setRequestProperty("Sec-Fetch-Site", "same-origin")
-                    connection.setRequestProperty("Sec-Fetch-User", "?1")
-                    connection.setRequestProperty("Upgrade-Insecure-Requests", "1")
-                    
-                    try {
-                        val parsedUri = Uri.parse(currentUrl)
-                        val origin = "${parsedUri.scheme}://${parsedUri.host}"
-                        val effectiveReferrer = if (referrerUrl.isNotBlank() && referrerUrl != "home" && !referrerUrl.startsWith("about:")) {
-                            referrerUrl
-                        } else {
-                            origin
-                        }
-                        connection.setRequestProperty("Referer", effectiveReferrer)
-                        connection.setRequestProperty("Origin", origin)
-                    } catch (e: Exception) {}
-
-                    if (startByte > 0) {
-                        connection.setRequestProperty("Range", "bytes=$startByte-")
+                val append = isResume && partFile.exists() && partFile.length() > 0
+                val result = GeckoDownloadEngine.executeDownload(
+                    context = context,
+                    url = url,
+                    targetFile = partFile,
+                    referrerUrl = referrerUrl,
+                    append = append
+                ) { currentDownloaded, totalLength, currentSpeedStr ->
+                    val progressValue = if (totalLength > 0) (currentDownloaded.toFloat() / totalLength.toFloat()).coerceIn(0f, 1f) else 0f
+                    val downloadedStr = formatFileSize(currentDownloaded)
+                    val totalStr = if (totalLength > 0) formatFileSize(totalLength) else ""
+                    var sizeDisplay = if (totalStr.isNotEmpty()) "$downloadedStr / $totalStr" else downloadedStr
+                    if (currentSpeedStr.isNotEmpty()) {
+                        sizeDisplay += " • $currentSpeedStr"
                     }
-
-                    connection.connect()
-                    responseCode = connection.responseCode
-
-                    // Handle redirects (across protocols/domains)
-                    if (responseCode in listOf(301, 302, 303, 307, 308)) {
-                        val location = connection.getHeaderField("Location")
-                        if (!location.isNullOrEmpty()) {
-                            currentUrl = java.net.URL(urlObj, location).toString()
-                            try { connection.disconnect() } catch (e: Exception) {}
-                            connectAttempts++
-                            continue
-                        }
-                    }
-
-                    // If server rejects Range requests with 416 Range Not Satisfiable or 400, fall back to clean GET from byte 0
-                    if ((responseCode == 416 || responseCode == 400) && startByte > 0) {
-                        try { connection.disconnect() } catch (e: Exception) {}
-                        try { partFile.delete() } catch (e: Exception) {}
-                        startByte = 0L
-                        connectAttempts++
-                        continue
-                    }
-
-                    // If 403 Forbidden with Range: retry once from byte 0
-                    if (responseCode == 403 && startByte > 0 && connectAttempts < 2) {
-                        try { connection.disconnect() } catch (e: Exception) {}
-                        startByte = 0L
-                        connectAttempts++
-                        continue
-                    }
-
-                    break
-                }
-
-                var totalLength: Long
-                var currentDownloaded: Long
-
-                if (responseCode == 206) {
-                    append = true
-                    currentDownloaded = startByte
-                    val serverRemaining = connection?.contentLengthLong ?: 0L
-                    totalLength = if (initialTotal > 0) initialTotal else (if (serverRemaining > 0) startByte + serverRemaining else 0L)
-                } else if (responseCode in 200..299) {
-                    append = false
-                    currentDownloaded = 0L
-                    val respLength = connection?.contentLengthLong ?: 0L
-                    totalLength = if (contentLength > 0) contentLength else respLength
-                } else {
-                    val connMsg = connection?.responseMessage ?: ""
-                    throw java.io.IOException("HTTP error: $responseCode $connMsg")
-                }
-
-                val safeConnection = connection ?: throw java.io.IOException("Connection is null")
-                inputStream = safeConnection.inputStream.buffered()
-                fileOutputStream = java.io.FileOutputStream(partFile, append).buffered()
-
-                val buffer = ByteArray(131072) // 128 KB high-throughput memory-safe bounded buffer
-                var lastUiUpdateTime = 0L
-                var speedWindowStartTime = android.os.SystemClock.uptimeMillis()
-                var speedWindowStartBytes = currentDownloaded
-                var currentSpeedStr = ""
-
-                while (kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]?.isActive == true) {
-                    val currentTask = _downloads.value.find { it.id == taskId }
-                    if (currentTask != null && currentTask.status != "Downloading") {
-                        break
-                    }
-                    val bytesRead = inputStream.read(buffer)
-                    if (bytesRead == -1) break
-                    fileOutputStream.write(buffer, 0, bytesRead)
-                    currentDownloaded += bytesRead
-
-                    val now = android.os.SystemClock.uptimeMillis()
-                    val timeDelta = now - speedWindowStartTime
-                    if (timeDelta >= 1000) {
-                        val bytesInDelta = currentDownloaded - speedWindowStartBytes
-                        val bytesPerSec = (bytesInDelta * 1000L) / timeDelta.coerceAtLeast(1L)
-                        currentSpeedStr = if (bytesPerSec > 0) "${formatFileSize(bytesPerSec)}/s" else ""
-                        speedWindowStartTime = now
-                        speedWindowStartBytes = currentDownloaded
-                    }
-
-                    if (now - lastUiUpdateTime > 400 || (totalLength > 0 && currentDownloaded >= totalLength)) {
-                        lastUiUpdateTime = now
-                        val progressValue = if (totalLength > 0) (currentDownloaded.toFloat() / totalLength.toFloat()).coerceIn(0f, 1f) else 0f
-                        val downloadedStr = formatFileSize(currentDownloaded)
-                        val totalStr = if (totalLength > 0) formatFileSize(totalLength) else ""
-                        var sizeDisplay = if (totalStr.isNotEmpty()) "$downloadedStr / $totalStr" else downloadedStr
-                        if (currentSpeedStr.isNotEmpty()) {
-                            sizeDisplay += " • $currentSpeedStr"
-                        }
-
-                        _downloads.value = _downloads.value.map { task ->
-                            if (task.id == taskId) {
-                                if (task.status == "Downloading") {
-                                    task.copy(
-                                        progress = progressValue,
-                                        downloadedBytes = currentDownloaded,
-                                        totalBytes = totalLength,
-                                        sizeString = sizeDisplay
-                                    )
-                                } else task
+                    _downloads.value = _downloads.value.map { task ->
+                        if (task.id == taskId) {
+                            if (task.status == "Downloading") {
+                                task.copy(
+                                    progress = progressValue,
+                                    downloadedBytes = currentDownloaded,
+                                    totalBytes = totalLength,
+                                    sizeString = sizeDisplay
+                                )
                             } else task
-                        }
+                        } else task
                     }
                 }
-
-                fileOutputStream.flush()
-                fileOutputStream.close()
-                fileOutputStream = null
-
-                inputStream.close()
-                inputStream = null
-
+                
+                if (result is GeckoDownloadResult.HtmlChallengeResponse) {
+                    throw java.io.IOException(result.message)
+                } else if (result is GeckoDownloadResult.ServerError) {
+                    throw java.io.IOException(result.message)
+                } else if (result is GeckoDownloadResult.Error) {
+                    throw java.io.IOException(result.message ?: "Unknown download error", result.cause)
+                }
+                
+                val successResult = result as GeckoDownloadResult.Success
+                
                 if (kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]?.isActive != true) {
                     return@launch
                 }
-
-                val respDisposition = safeConnection.getHeaderField("Content-Disposition") ?: contentDisposition
-                val respContentType = safeConnection.contentType ?: safeConnection.getHeaderField("Content-Type")
-                val redirectedUrl = safeConnection.url?.toString() ?: currentUrl
-                val effectiveDownloadMime = if (!SecretDownloadFilenameHelper.isGenericMimeType(respContentType)) {
-                    respContentType ?: resolvedInitialMime
+                val effectiveDownloadMime = if (!SecretDownloadFilenameHelper.isGenericMimeType(successResult.mimeType)) {
+                    successResult.mimeType
                 } else {
                     resolvedInitialMime
                 }
-
+                
                 val (resolvedFinalFilename, resolvedFinalMime) = SecretDownloadFilenameHelper.resolveFilenameAndMime(
-                    url = redirectedUrl,
-                    contentDisposition = respDisposition,
+                    url = url,
+                    contentDisposition = contentDisposition,
                     mimeType = effectiveDownloadMime
                 )
-
+                
                 val downloadHandler = VaultDownloadHandler(context)
                 val targetFilePath = downloadHandler.saveDownloadedFile(
                     filename = resolvedFinalFilename,
@@ -5016,16 +4891,16 @@ val downloads: StateFlow<List<DownloadTask>> = _downloads.asStateFlow()
                                 mimeType = resolvedFinalMime,
                                 filePath = targetFilePath ?: "",
                                 canResume = false,
-                                sizeString = formatFileSize(currentDownloaded)
+                                sizeString = formatFileSize(successResult.totalRead)
                             )
                         } else task
                     }
                     _downloads.value = finalDownloads
                     saveDownloads(finalDownloads)
                     if (success) {
-                        android.widget.Toast.makeText(context, "$resolvedFinalFilename download completed!", android.widget.Toast.LENGTH_LONG).show()
+                        android.widget.Toast.makeText(context, "Download Complete: $resolvedFinalFilename", android.widget.Toast.LENGTH_LONG).show()
                     } else {
-                        android.widget.Toast.makeText(context, "Failed to save downloaded file $resolvedFinalFilename", android.widget.Toast.LENGTH_SHORT).show()
+                        android.widget.Toast.makeText(context, "Download Failed: $resolvedFinalFilename (Save error)", android.widget.Toast.LENGTH_SHORT).show()
                     }
                 }
             } catch (e: Exception) {
@@ -5036,10 +4911,9 @@ val downloads: StateFlow<List<DownloadTask>> = _downloads.asStateFlow()
                 if (isPausedByUser) {
                     return@launch
                 }
-                android.util.Log.e("VaultDownload", "Error downloading file $finalFilename", e)
+                android.util.Log.e("VaultDownload", "Error downloading file $url", e)
                 withContext(Dispatchers.Main) {
                     activeDownloadJobs.remove(taskId)
-                    activeDownloadConnections.remove(taskId)
                     val canResumeLater = partFile.exists() && partFile.length() > 0
                     val finalDownloads = _downloads.value.map { task ->
                         if (task.id == taskId) {
@@ -5051,19 +4925,18 @@ val downloads: StateFlow<List<DownloadTask>> = _downloads.asStateFlow()
                     }
                     _downloads.value = finalDownloads
                     saveDownloads(finalDownloads)
-                    val errorText = if (e.localizedMessage?.contains("403") == true) {
-                        "Download expired or forbidden (403). Please click download again on the website for a fresh link."
+                    val rawMsg = e.localizedMessage ?: "Network error"
+                    val displayError = if (rawMsg.contains("Verification/Ad page")) {
+                        "Ad/Challenge page received instead of media"
+                    } else if (rawMsg.contains("403")) {
+                        "Download expired or forbidden (403)"
                     } else {
-                        "Download error: ${e.localizedMessage ?: "Network error"}"
+                        rawMsg
                     }
-                    android.widget.Toast.makeText(context, errorText, android.widget.Toast.LENGTH_LONG).show()
+                    android.widget.Toast.makeText(context, "Download Failed: ${url.takeLast(20)} ($displayError)", android.widget.Toast.LENGTH_LONG).show()
                 }
             } finally {
-                try { fileOutputStream?.close() } catch (e: Exception) {}
-                try { inputStream?.close() } catch (e: Exception) {}
-                try { connection?.disconnect() } catch (e: Exception) {}
                 activeDownloadJobs.remove(taskId)
-                activeDownloadConnections.remove(taskId)
             }
         }
         activeDownloadJobs[taskId] = job

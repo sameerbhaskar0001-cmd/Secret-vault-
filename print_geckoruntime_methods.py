@@ -1,8 +1,11 @@
-import sys
-import zipfile
-import re
-
-def find_methods():
-    jar_path = ""
-    # We don't have the jar directly, it's downloaded by gradle.
-    pass
+import subprocess
+try:
+    with open("test_gecko2.kt", "w") as f:
+        f.write("""package com.example
+import org.mozilla.geckoview.WebResponse
+fun check(r: WebResponse) {
+    val h = r.headers["Content-Type"]
+}""")
+    subprocess.run(["/opt/gradle/gradle-9.3.1/bin/gradle", ":app:compileDebugKotlin"])
+except Exception as e:
+    print(e)

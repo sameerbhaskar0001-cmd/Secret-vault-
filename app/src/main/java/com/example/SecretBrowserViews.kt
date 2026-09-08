@@ -4669,353 +4669,29 @@ fun PrivateBrowserSection(
                         }
                     }
 
-                    IconButton(
-                        onClick = { showMenu = true },
-                        modifier = Modifier.size(34.dp)
-                    ) {
-                        Icon(Icons.Default.MoreVert, "More Options", tint = TextPrimary, modifier = Modifier.size(19.dp))
-                    }
-                }
-            }
-
-            if (showFindInPage && !isHome) {
-                FindInPageBar(
-                    query = findInPageText,
-                    onQueryChange = { text ->
-                        findInPageText = text
-                        performFindInPage(text, true)
-                    },
-                    currentMatch = findInPageMatchCurrent,
-                    totalMatch = findInPageMatchTotal,
-                    onPrev = { findPreviousMatch() },
-                    onNext = { findNextMatch() },
-                    onClose = { closeFindInPage() }
-                )
-            }
-
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                if (isHome) {
-                    SecretBrowserHome(
-                        tabs = tabs,
-                        activeTabId = activeTabId ?: "",
-                        searchEngine = searchEngine,
-                        browserBookmarks = browserBookmarks,
-                        browserHistory = browserHistory,
-                        onSearch = { query ->
-                            var target = query.trim()
-                            if (!target.startsWith("http://") && !target.startsWith("https://")) {
-                                if (target.contains(".") && !target.contains(" ")) {
-                                    target = "https://$target"
-                                } else {
-                                    val q = java.net.URLEncoder.encode(target, "UTF-8")
-                                    target = when (searchEngine) {
-                                        "DuckDuckGo" -> "https://duckduckgo.com/?q=$q"
-                                        "Bing" -> "https://www.bing.com/search?q=$q&setlang=en&cc=US"
-                                        "Yahoo" -> "https://search.yahoo.com/search?p=$q&ei=UTF-8&vc=US&vl=en"
-                                        else -> "https://www.google.com/search?q=$q&hl=en&gl=US"
-                                    }
-                                }
-                            }
-                            loadUrl(target)
-                        },
-                        onOpenNewTab = { openNewTab(it) },
-                        onSelectActiveTab = { targetId ->
-                            val currentId = activeTabId
-                            if (currentId != null && currentId != targetId) {
-                                geckoViews[currentId]?.let { gv -> captureViewThumbnail(gv, currentId) }
-                            }
-                            activeTabId = targetId
-                        },
-                        onCloseTab = closeTab,
-                        onShowBookmarks = { showBookmarks = true },
-                        onShowHistory = { showHistory = true },
-                        onShowDownloads = { showDownloads = true },
-                        onShowSettings = { showSettings = true },
-                        onShowSearchEngineDialog = { showSearchEngineDialog = true },
-                        onClearAllData = {
-                            if (clearHistoryOnExit) {
-                                viewModel.clearBrowserHistory()
-                            }
-                            clearAllBrowsingData(context, tabs)
-                            geckoViews.values.forEach { try { (it.parent as? android.view.ViewGroup)?.removeView(it); it.releaseSession() } catch (e: Exception) {} }
-                            geckoViews.clear()
-                            geckoSessions.clear()
-                            openNewTab("home")
-                            Toast.makeText(context, "Session Purged Successfully!", Toast.LENGTH_SHORT).show()
-                        }
-                    )
-                } else {
-                    val targetProgress = if (activeTab?.isLoading == true) {
-                        ((activeTab?.progress ?: 0).coerceIn(12, 95)) / 100f
-                    } else {
-                        1f
-                    }
-                    val animatedProgress by animateFloatAsState(
-                        targetValue = targetProgress,
-                        animationSpec = tween(
-                            durationMillis = if (activeTab?.isLoading == true) 250 else 150,
-                            easing = FastOutSlowInEasing
-                        ),
-                        label = "BrowserAnimatedProgress"
-                    )
-                    val progressAlpha by animateFloatAsState(
-                        targetValue = if (activeTab?.isLoading == true && activeTab?.isFullScreen != true) 1f else 0f,
-                        animationSpec = tween(durationMillis = if (activeTab?.isLoading == true) 120 else 280),
-                        label = "BrowserProgressAlpha"
-                    )
-
-                    if (activeGeckoSession != null && currentActiveId != null) {
-                        Box(modifier = Modifier.fillMaxSize()) {
-                            AndroidView(
-                                factory = { ctx ->
-                                    val gv = org.mozilla.geckoview.GeckoView(ctx)
-                                    geckoViews[currentActiveId] = gv
-                                    try {
-                                        activeGeckoSession.setActive(true)
-                                        gv.setSession(activeGeckoSession)
-                                    } catch (e: Exception) {
-                                        android.util.Log.e("GeckoViewAttach", "Failed in factory", e)
-                                    }
-                                    gv
-                                },
-                                update = { geckoView ->
-                                    geckoViews[currentActiveId] = geckoView
-                                    try {
-                                        activeGeckoSession.setActive(true)
-                                        if (geckoView.session != activeGeckoSession) {
-                                            geckoView.releaseSession()
-                                            geckoView.setSession(activeGeckoSession)
-                                        }
-                                    } catch (e: Exception) {
-                                        android.util.Log.e("GeckoViewUpdate", "Failed in update", e)
-                                    }
-                                },
-                                onRelease = { geckoView ->
-                                    try {
-                                        geckoViews.remove(currentActiveId)
-                                        geckoView.releaseSession()
-                                        (geckoView.parent as? android.view.ViewGroup)?.removeView(geckoView)
-                                    } catch (e: Exception) {}
-                                },
-                                modifier = Modifier.fillMaxSize()
-                            )
-                            if (progressAlpha > 0f && activeTab?.isFullScreen != true) {
-                                LinearProgressIndicator(
-                                    progress = { animatedProgress },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(3.dp)
-                                        .align(Alignment.TopCenter)
-                                        .graphicsLayer { alpha = progressAlpha },
-                                    color = AccentColor,
-                                    trackColor = AccentColor.copy(alpha = 0.12f)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // BOTTOM DOCK NAVIGATION REBUILD
-            if (activeTab?.isFullScreen != true) Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 8.dp)
-                    .navigationBarsPadding(),
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(54.dp),
-                    shape = RoundedCornerShape(27.dp),
-                    colors = CardDefaults.cardColors(containerColor = LightCard),
-                    border = BorderStroke(1.dp, BorderColor),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceAround,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val canNavigateBack = (activeTab?.canGoBack == true) || (activeTab != null && SecretBrowserNavigationCheckpointManager.hasValidCheckpoint(activeTab.id, activeTab.url)) || (activeTab?.parentTabId != null) || (!isHome && activeTab?.url != "home" && activeTab?.url?.isNotEmpty() == true)
+                    Box(modifier = Modifier.wrapContentSize(Alignment.TopEnd)) {
                         IconButton(
-                            onClick = { goBack() },
-                            enabled = canNavigateBack,
-                            modifier = Modifier.size(38.dp)
+                            onClick = { showMenu = !showMenu },
+                            modifier = Modifier.size(34.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.ArrowBack,
-                                contentDescription = "Back",
-                                tint = if (canNavigateBack) TextPrimary else TextSecondary.copy(alpha = 0.3f),
-                                modifier = Modifier.size(19.dp)
-                            )
-                        }
-
-                        IconButton(
-                            onClick = { goForward() },
-                            enabled = activeTab?.canGoForward == true,
-                            modifier = Modifier.size(38.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.ArrowForward,
-                                contentDescription = "Forward",
-                                tint = if (activeTab?.canGoForward == true) TextPrimary else TextSecondary.copy(alpha = 0.3f),
-                                modifier = Modifier.size(19.dp)
-                            )
-                        }
-
-                        IconButton(
-                            onClick = {
-                                stopLoading()
-                                loadUrl("home")
-                            },
-                            modifier = Modifier.size(38.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Home,
-                                contentDescription = "Home",
-                                tint = if (isHome) AccentColor else TextPrimary,
-                                modifier = Modifier.size(19.dp)
-                            )
-                        }
-
-                        IconButton(
-                            onClick = { openNewTab("home") },
-                            modifier = Modifier.size(38.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = "New Tab",
+                                imageVector = if (showMenu) Icons.Default.Close else Icons.Default.MoreVert,
+                                contentDescription = if (showMenu) "Close Menu" else "More Options",
                                 tint = TextPrimary,
                                 modifier = Modifier.size(19.dp)
                             )
                         }
-
-                        Box(
+                        
+                        androidx.compose.material3.DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false },
+                            offset = androidx.compose.ui.unit.DpOffset(0.dp, 56.dp),
                             modifier = Modifier
-                                .size(38.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .premiumPressClick {
-                                    activeTabId?.let { id -> captureViewThumbnail(geckoViews[id], id) }
-                                    showTabSwitcher = true
-                                },
-                            contentAlignment = Alignment.Center
+                                .background(LightBg)
+                                .widthIn(min = 280.dp, max = 320.dp)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (showTabSwitcher) AccentColor.copy(alpha = 0.15f) else Color.Transparent)
-                                    .border(1.5.dp, if (showTabSwitcher) AccentColor else TextPrimary, RoundedCornerShape(8.dp)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = tabs.size.toString(),
-                                    color = if (showTabSwitcher) AccentColor else TextPrimary,
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // BROWSER MENU OVERLAY (Command Center style)
-        androidx.compose.animation.AnimatedVisibility(
-            visible = showMenu,
-            enter = androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(180)) +
-                    androidx.compose.animation.slideInVertically(initialOffsetY = { it / 4 }, animationSpec = androidx.compose.animation.core.tween(220)),
-            exit = androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(150)) +
-                    androidx.compose.animation.slideOutVertically(targetOffsetY = { it / 4 }, animationSpec = androidx.compose.animation.core.tween(180))
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.5f))
-                    .clickable { showMenu = false }
-            ) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.BottomCenter)
-                        .navigationBarsPadding()
-                        .clickable(enabled = false) {},
-                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                    colors = CardDefaults.cardColors(containerColor = LightBg),
-                    border = BorderStroke(1.dp, BorderColor)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 580.dp)
-                            .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 20.dp, vertical = 16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        // Drag handle
-                        Box(
-                            modifier = Modifier
-                                .width(36.dp)
-                                .height(4.dp)
-                                .background(TextSecondary.copy(alpha = 0.3f), CircleShape)
-                        )
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        // Header Bar
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(34.dp)
-                                    .background(AccentColor.copy(alpha = 0.12f), RoundedCornerShape(10.dp)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Shield,
-                                    contentDescription = null,
-                                    tint = AccentColor,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Command Center",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextPrimary
-                                )
-                                Text(
-                                    text = "Quick navigation & privacy tools",
-                                    fontSize = 11.5.sp,
-                                    color = TextSecondary
-                                )
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .size(30.dp)
-                                    .clip(CircleShape)
-                                    .background(LightCard)
-                                    .border(0.8.dp, BorderColor, CircleShape)
-                                    .clickable { showMenu = false },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Close Menu",
-                                    tint = TextSecondary,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
+                                Spacer(modifier = Modifier.height(8.dp))
                         // Category: BROWSER
                         CommandCenterSectionCard(title = "BROWSER") {
                             CommandCenterMenuItem(
@@ -5217,50 +4893,17 @@ fun PrivateBrowserSection(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
+
                         // Panic Mode Presentation
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 2.dp, bottom = 4.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = DangerColor.copy(alpha = 0.06f)),
-                            border = BorderStroke(1.dp, DangerColor.copy(alpha = 0.25f))
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Column(
+                            Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Warning,
-                                        contentDescription = "Panic Mode",
-                                        tint = DangerColor,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Panic Mode",
-                                        color = TextPrimary,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Close Secret Browser and clear sensitive browsing session",
-                                    color = TextSecondary,
-                                    fontSize = 11.5.sp,
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                    modifier = Modifier.padding(horizontal = 8.dp)
-                                )
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Button(
-                                    onClick = {
+                                    .size(48.dp)
+                                    .background(DangerColor, CircleShape)
+                                    .clickable {
                                         showMenu = false
                                         try {
                                             SecretBrowserSecureDelete.cleanTemporaryUploadsDirectory(context, secure = true)
@@ -5277,20 +4920,118 @@ fun PrivateBrowserSection(
                                         geckoSessions.clear()
                                         onPanic()
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = DangerColor),
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.fillMaxWidth().height(40.dp)
-                                ) {
-                                    Text(
-                                        text = "Activate Panic Mode",
-                                        color = Color.White,
-                                        fontSize = 12.5.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Warning, contentDescription = "Panic Mode", tint = Color.White, modifier = Modifier.size(24.dp))
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Panic Mode", color = DangerColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                                Spacer(modifier = Modifier.height(32.dp))
+                                Spacer(modifier = Modifier.windowInsetsBottomHeight(androidx.compose.foundation.layout.WindowInsets.navigationBars))
+                        }
+                    }
+                    }
+                }
+
+
+            if (showFindInPage && !isHome) {
+                FindInPageBar(
+                    query = findInPageText,
+                    onQueryChange = { text ->
+                        findInPageText = text
+                        performFindInPage(text, true)
+                    },
+                    currentMatch = findInPageMatchCurrent,
+                    totalMatch = findInPageMatchTotal,
+                    onPrev = { findPreviousMatch() },
+                    onNext = { findNextMatch() },
+                    onClose = { closeFindInPage() }
+                )
+            }
+
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                if (isHome) {
+                    SecretBrowserHome(
+                        tabs = tabs,
+                        activeTabId = activeTabId ?: "",
+                        searchEngine = searchEngine,
+                        browserBookmarks = browserBookmarks,
+                        browserHistory = browserHistory,
+                        onSearch = { query ->
+                            var target = query.trim()
+                            if (!target.startsWith("http://") && !target.startsWith("https://")) {
+                                val encoded = java.net.URLEncoder.encode(target, "UTF-8")
+                                target = if (searchEngine == "DuckDuckGo") {
+                                    "https://duckduckgo.com/?q=$encoded"
+                                } else {
+                                    "https://www.google.com/search?q=$encoded"
                                 }
                             }
+                            loadUrl(target)
+                        },
+                        onOpenNewTab = { url -> openNewTab(url) },
+                        onSelectActiveTab = { id -> activeTabId = id },
+                        onCloseTab = { id -> closeTab(id) },
+                        onShowBookmarks = { showBookmarks = true },
+                        onShowHistory = { showHistory = true },
+                        onShowDownloads = { showDownloads = true },
+                        onShowSettings = { showSettings = true },
+                        onShowSearchEngineDialog = { showSearchEngineDialog = true },
+                        onClearAllData = { showMenuClearBrowsingDataDialog = true }
+                    )
+                }
+
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = !isHome,
+                    enter = androidx.compose.animation.fadeIn(),
+                    exit = androidx.compose.animation.fadeOut()
+                ) {
+                    if (activeGeckoSession != null && currentActiveId != null) {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            AndroidView(
+                                factory = { ctx ->
+                                    val gv = org.mozilla.geckoview.GeckoView(ctx)
+                                    geckoViews[currentActiveId] = gv
+                                    try {
+                                        activeGeckoSession.setActive(true)
+                                        gv.setSession(activeGeckoSession)
+                                    } catch (e: Exception) {
+                                        android.util.Log.e("GeckoViewAttach", "Failed in factory", e)
+                                    }
+                                    gv
+                                },
+                                update = { geckoView ->
+                                    geckoViews[currentActiveId] = geckoView
+                                    try {
+                                        activeGeckoSession.setActive(true)
+                                        if (geckoView.session != activeGeckoSession) {
+                                            geckoView.releaseSession()
+                                            geckoView.setSession(activeGeckoSession)
+                                        }
+                                    } catch (e: Exception) {
+                                        android.util.Log.e("GeckoViewAttach", "Failed in update", e)
+                                    }
+                                    geckoView.isSaveEnabled = false
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = activeTab?.isLoading == true,
+                                enter = androidx.compose.animation.fadeIn(),
+                                exit = androidx.compose.animation.fadeOut(),
+                                modifier = Modifier.align(Alignment.TopCenter)
+                            ) {
+                                LinearProgressIndicator(
+                                    progress = { (activeTab?.progress ?: 0) / 100f },
+                                    modifier = Modifier.fillMaxWidth().height(2.dp),
+                                    color = AccentColor,
+                                    trackColor = Color.Transparent,
+                                    strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+                                )
+                            }
                         }
-                        Spacer(modifier = Modifier.height(6.dp))
                     }
                 }
             }

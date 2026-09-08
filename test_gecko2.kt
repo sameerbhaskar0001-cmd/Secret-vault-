@@ -1,4 +1,5 @@
+package com.example
 import org.mozilla.geckoview.WebResponse
 fun check(r: WebResponse) {
-    val b: java.io.InputStream = r.body
+    val h = r.headers["Content-Type"]
 }
