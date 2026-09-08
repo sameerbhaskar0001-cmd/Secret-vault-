@@ -1,0 +1,16 @@
+            val response = suspendCoroutine<WebResponse> { continuation ->
+                val result = executor.fetch(request, GeckoWebExecutor.FETCH_FLAGS_NONE)
+                result.accept(
+                    { res -> 
+                        if (res != null) {
+                            continuation.resume(res)
+                        } else {
+                            continuation.resumeWithException(Exception("Received null WebResponse"))
+                        }
+                    },
+                    { ex ->
+                        continuation.resumeWithException(ex ?: Exception("Unknown GeckoWebExecutor error"))
+                    }
+                )
+            }
+

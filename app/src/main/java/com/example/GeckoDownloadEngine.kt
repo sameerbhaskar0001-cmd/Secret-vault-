@@ -45,19 +45,25 @@ object GeckoDownloadEngine {
             val request = builder.build()
 
             val response = suspendCoroutine<WebResponse> { continuation ->
-                val result = executor.fetch(request, GeckoWebExecutor.FETCH_FLAGS_NONE)
-                result.accept(
-                    { res -> 
-                        if (res != null) {
-                            continuation.resume(res)
-                        } else {
-                            continuation.resumeWithException(Exception("Received null WebResponse"))
-                        }
-                    },
-                    { ex ->
-                        continuation.resumeWithException(ex ?: Exception("Unknown GeckoWebExecutor error"))
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    try {
+                        val result = executor.fetch(request, GeckoWebExecutor.FETCH_FLAGS_NONE)
+                        result.accept(
+                            { res -> 
+                                if (res != null) {
+                                    continuation.resume(res)
+                                } else {
+                                    continuation.resumeWithException(Exception("Received null WebResponse"))
+                                }
+                            },
+                            { ex ->
+                                continuation.resumeWithException(ex ?: Exception("Unknown GeckoWebExecutor error"))
+                            }
+                        )
+                    } catch (e: Exception) {
+                        continuation.resumeWithException(e)
                     }
-                )
+                }
             }
 
             val statusCode = response.statusCode

@@ -94,6 +94,9 @@ object GeckoSessionManager {
                         }
                         return org.mozilla.geckoview.GeckoResult.fromValue(org.mozilla.geckoview.AllowOrDeny.DENY)
                     }
+                    if (url == "about:blank" && currentMainUrl != "home" && currentMainUrl != "about:blank" && currentMainUrl.isNotBlank()) {
+                        return org.mozilla.geckoview.GeckoResult.fromValue(org.mozilla.geckoview.AllowOrDeny.DENY)
+                    }
                     if (SecretBrowserTrackingProtection.shouldBlock(url, isMainFrame = true, currentSiteUrl = currentMainUrl)) {
                         SecretBrowserTrackingProtection.onTrackerBlocked?.invoke(tabId, currentMainUrl)
                         return org.mozilla.geckoview.GeckoResult.fromValue(org.mozilla.geckoview.AllowOrDeny.DENY)

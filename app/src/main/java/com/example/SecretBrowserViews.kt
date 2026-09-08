@@ -4691,7 +4691,17 @@ fun PrivateBrowserSection(
                                 .widthIn(min = 280.dp, max = 320.dp)
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                                Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Command Center", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                IconButton(onClick = { showMenu = false }, modifier = Modifier.size(32.dp)) {
+                                    Icon(Icons.Default.Close, contentDescription = "Close Menu", tint = TextPrimary)
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
                         // Category: BROWSER
                         CommandCenterSectionCard(title = "BROWSER") {
                             CommandCenterMenuItem(
@@ -4927,8 +4937,7 @@ fun PrivateBrowserSection(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text("Panic Mode", color = DangerColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
-                                Spacer(modifier = Modifier.height(32.dp))
-                                Spacer(modifier = Modifier.windowInsetsBottomHeight(androidx.compose.foundation.layout.WindowInsets.navigationBars))
+                                Spacer(modifier = Modifier.height(80.dp))
                         }
                     }
                     }
