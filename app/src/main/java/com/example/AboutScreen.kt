@@ -367,7 +367,7 @@ fun AboutScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(100.dp))
+                Spacer(modifier = Modifier.fillMaxWidth().navigationBarsPadding())
             }
         }
     }

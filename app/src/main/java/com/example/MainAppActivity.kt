@@ -63,7 +63,7 @@ class MainAppActivity : FragmentActivity() {
     }
 
     // Force the window to fit system windows (status and navigation bars) to avoid overlaps globally
-    androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, true)
+    enableEdgeToEdge()
 
     try {
         viewModel = ViewModelProvider(this)[CalculatorViewModel::class.java]

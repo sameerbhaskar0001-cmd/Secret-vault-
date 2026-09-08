@@ -1143,7 +1143,7 @@ fun SecretBrowserHome(
             }
         }
 
-        Spacer(modifier = Modifier.height(100.dp)) // Safe clearance for floating dock bottom bar
+        Spacer(modifier = Modifier.fillMaxWidth().navigationBarsPadding())
     }
 }
 
@@ -3936,24 +3936,27 @@ fun PrivateBrowserSection(
         activeGeckoSession?.reload()
     }
     val goBack: () -> Unit = {
-        stopLoading()
         if (activeGeckoSession != null && activeTab?.canGoBack == true) {
             // Priority 1: Navigate backward through GeckoView browser session history
             activeGeckoSession.goBack()
         } else if (activeTab != null && SecretBrowserNavigationCheckpointManager.hasValidCheckpoint(activeTab.id, activeTab.url)) {
             // Priority 2: Fallback to pre-redirect / same-tab replacement checkpoint if GeckoView history is lost
+            stopLoading()
             val prevUrl = SecretBrowserNavigationCheckpointManager.popValidCheckpoint(activeTab.id, activeTab.url)
             if (prevUrl != null) {
                 loadUrl(prevUrl)
             }
         } else if (activeTab?.parentTabId != null && tabs.any { it.id == activeTab.parentTabId }) {
             // Priority 3: If this was a popup/child tab with exhausted history, close it and return to parent tab
+            stopLoading()
             closeTab(activeTab.id)
         } else if (activeTab != null && !isHome && activeTab.url != "home" && activeTab.url.isNotEmpty()) {
             // Priority 4: Return from web page to browser home dashboard
+            stopLoading()
             loadUrl("home")
         } else if (isHome && tabs.size > 1 && activeTab != null) {
             // Priority 5: If on home and multiple tabs exist, close tab and switch to remaining tab
+            stopLoading()
             closeTab(activeTab.id)
         }
     }
@@ -3992,7 +3995,6 @@ fun PrivateBrowserSection(
             closeFindInPage()
         } else if (activeGeckoSession != null && activeTab?.canGoBack == true) {
             // Priority 1: Navigate backward through the GeckoView browser session history
-            stopLoading()
             activeGeckoSession.goBack()
         } else if (activeTab != null && SecretBrowserNavigationCheckpointManager.hasValidCheckpoint(activeTab.id, activeTab.url)) {
             // Priority 2: Fallback to pre-redirect/same-tab replacement checkpoint if GeckoView history is lost
@@ -4415,7 +4417,7 @@ fun PrivateBrowserSection(
             .background(if (activeTab?.isFullScreen == true) Color.Black else LightBg)
             .let { if (activeTab?.isFullScreen == true) it.zIndex(200f) else it }
     ) {
-        Column(modifier = Modifier.fillMaxSize().let { if (activeTab?.isFullScreen == true) it else it.statusBarsPadding() }) {
+        Column(modifier = Modifier.fillMaxSize().let { if (activeTab?.isFullScreen == true) it else it.statusBarsPadding().navigationBarsPadding() }) {
 
             // TOP ADDRESS / BAR AREA
             if (activeTab?.isFullScreen != true) Row(
@@ -4937,7 +4939,8 @@ fun PrivateBrowserSection(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text("Panic Mode", color = DangerColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
-                                Spacer(modifier = Modifier.height(80.dp))
+                                Spacer(modifier = Modifier.height(32.dp))
+                                Spacer(modifier = Modifier.fillMaxWidth().navigationBarsPadding())
                         }
                     }
                     }

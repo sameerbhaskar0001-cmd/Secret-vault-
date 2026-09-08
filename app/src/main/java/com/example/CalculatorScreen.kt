@@ -2536,7 +2536,26 @@ fun VaultTabUnlockedContent(
                             if (acceleration > 25.0f) { // Intentional shake
                                 viewModel.triggerKeypressEffects(context)
                                 viewModel.lockVault()
-                                Toast.makeText(context, "Shake to Exit: Vault locked!", Toast.LENGTH_SHORT).show()
+                                when (panicExitActionVal) {
+                                    "calculator" -> {
+                                        Toast.makeText(context, "Shake to Exit: Vault locked!", Toast.LENGTH_SHORT).show()
+                                    }
+                                    "home" -> {
+                                        Toast.makeText(context, "Shake to Exit: Returning to Home...", Toast.LENGTH_SHORT).show()
+                                        val intent = android.content.Intent(android.content.Intent.ACTION_MAIN).apply {
+                                            addCategory(android.content.Intent.CATEGORY_HOME)
+                                            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                                        }
+                                        context.startActivity(intent)
+                                    }
+                                    "close" -> {
+                                        Toast.makeText(context, "Shake to Exit: Closing Vault...", Toast.LENGTH_SHORT).show()
+                                        (context as? android.app.Activity)?.finishAffinity()
+                                    }
+                                    else -> {
+                                        (context as? android.app.Activity)?.finishAffinity()
+                                    }
+                                }
                             }
                             lastUpdate = curTime
                             lastX = x
@@ -3582,7 +3601,7 @@ fun VaultTabUnlockedContent(
                                 }
                                 Icon(Icons.Default.ArrowForward, contentDescription = "Open", tint = Color.White.copy(alpha = 0.3f), modifier = Modifier.size(14.dp))
                             }
-                            Spacer(modifier = Modifier.height(100.dp))
+                            Spacer(modifier = Modifier.fillMaxWidth().navigationBarsPadding())
                         }
                     }
                 "Photos", "Videos", "Documents", "Notes", "Music & Audio" -> {
@@ -4294,7 +4313,7 @@ fun VaultTabUnlockedContent(
                             onClick = { activeSection = "About" }
                         )
 
-                        Spacer(modifier = Modifier.height(100.dp))
+                        Spacer(modifier = Modifier.fillMaxWidth().navigationBarsPadding())
                     }
                 }
                 "Privacy Settings" -> {
@@ -4956,7 +4975,7 @@ fun VaultTabUnlockedContent(
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.height(100.dp).navigationBarsPadding())
+                        Spacer(modifier = Modifier.fillMaxWidth().navigationBarsPadding())
                     }
                 }
                 "Backup" -> {
@@ -5163,7 +5182,7 @@ fun VaultTabUnlockedContent(
                             onClick = { activeSection = "Monitoring" }
                         )
 
-                        Spacer(modifier = Modifier.height(100.dp))
+                        Spacer(modifier = Modifier.fillMaxWidth().navigationBarsPadding())
                     }
                 }
                 "Authentication" -> {
@@ -5655,7 +5674,7 @@ fun VaultTabUnlockedContent(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(100.dp))
+                        Spacer(modifier = Modifier.fillMaxWidth().navigationBarsPadding())
                     }
                 }
                 "Protection" -> {
@@ -6107,7 +6126,7 @@ fun VaultTabUnlockedContent(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(100.dp))
+                        Spacer(modifier = Modifier.fillMaxWidth().navigationBarsPadding())
                     }
 
                     // Selection Dialog for Auto Lock
@@ -6435,7 +6454,7 @@ fun VaultTabUnlockedContent(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(100.dp))
+                        Spacer(modifier = Modifier.fillMaxWidth().navigationBarsPadding())
                     }
 
                     // Selection Dialog for Shake Action
@@ -12380,7 +12399,7 @@ fun MonitoringSection(
                 }
             }
         }
-        Spacer(modifier = Modifier.height(100.dp).navigationBarsPadding())
+        Spacer(modifier = Modifier.fillMaxWidth().navigationBarsPadding())
     }
 
     // Detail Dialog
