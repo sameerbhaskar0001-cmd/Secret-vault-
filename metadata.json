@@ -1,0 +1,6 @@
+{
+  "name": "Calculator",
+  "description": "A high-security, ultra-polished stealth vault app masquerading as a modern Calculator with real-time currency conversion, dual decoy zones, and robust multi-language localization.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,1 @@
+sed -i 's/onDownloadCallbacks\[tabId\]?.invoke(url, userAgent, contentDisposition, mimeType, contentLength)/android.os.Handler(android.os.Looper.getMainLooper()).post { onDownloadCallbacks[tabId]?.invoke(url, userAgent, contentDisposition, mimeType, contentLength) }/g' app/src/main/java/com/example/GeckoSessionManager.kt

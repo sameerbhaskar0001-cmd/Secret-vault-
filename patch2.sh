@@ -1,0 +1,1 @@
+sed -i 's/} else if (activeTab?.url == "home") {/} else if (activeTab?.isFullScreen == true) {\n            if (activeGeckoSession != null) {\n                activeGeckoSession.exitFullScreen()\n            }\n        } else if (activeTab?.url == "home") {/g' app/src/main/java/com/example/SecretBrowserViews.kt
