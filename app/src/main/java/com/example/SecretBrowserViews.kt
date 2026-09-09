@@ -3893,13 +3893,15 @@ fun PrivateBrowserSection(
         if (formatted == "home") {
             val index = tabs.indexOfFirst { it.id == activeTabId }
             if (index != -1) {
+                val tabId = tabs[index].id
+                SecretBrowserNavigationCheckpointManager.clearTabCheckpoints(tabId)
                 tabs[index] = tabs[index].copy(
                     url = "home",
                     title = "New Tab",
                     progress = 0,
                     isLoading = false,
-                    canGoBack = activeTab?.canGoBack == true,
-                    canGoForward = activeTab?.canGoForward == true
+                    canGoBack = false,
+                    canGoForward = false
                 )
             }
             activeGeckoSession?.loadUri("about:blank")
@@ -3912,12 +3914,16 @@ fun PrivateBrowserSection(
                     shouldLoad = false
                 } else {
                     if (currentTab.url.isNotBlank() && currentTab.url != "home" && currentTab.url != "about:blank" && !currentTab.url.startsWith("data:") && currentTab.url != formatted) {
-                        SecretBrowserNavigationCheckpointManager.recordCheckpoint(
-                            tabId = currentTab.id,
-                            previousUrl = currentTab.url,
-                            previousTitle = currentTab.title,
-                            reason = "user_navigation"
-                        )
+                        val prevHost = try { java.net.URI(currentTab.url).host } catch (_: Exception) { null }
+                        val currHost = try { java.net.URI(formatted).host } catch (_: Exception) { null }
+                        if (prevHost != null && currHost != null && prevHost != currHost) {
+                            SecretBrowserNavigationCheckpointManager.recordCheckpoint(
+                                tabId = currentTab.id,
+                                previousUrl = currentTab.url,
+                                previousTitle = currentTab.title,
+                                reason = "user_navigation"
+                            )
+                        }
                     }
                     tabs[index] = tabs[index].copy(
                         url = formatted,
@@ -3988,7 +3994,18 @@ fun PrivateBrowserSection(
                     } catch (_: Exception) {}
                 }
 
-                if (shouldBypassGoBackWithCheckpoint) {
+                if (currentUrl == "home" || currentUrl == "about:blank" || isHome) {
+                    if (tab.parentTabId != null && tabs.any { it.id == tab.parentTabId }) {
+                        stopLoading()
+                        closeTab(tab.id)
+                    } else if (tabs.size > 1) {
+                        stopLoading()
+                        closeTab(tab.id)
+                    } else {
+                        stopLoading()
+                        onExit()
+                    }
+                } else if (shouldBypassGoBackWithCheckpoint) {
                     val prevUrl = SecretBrowserNavigationCheckpointManager.popValidCheckpoint(tab.id, currentUrl)
                     if (prevUrl != null) {
                         loadUrl(prevUrl)
