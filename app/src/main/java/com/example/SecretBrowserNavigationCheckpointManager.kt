@@ -20,6 +20,15 @@ object SecretBrowserNavigationCheckpointManager {
     private const val MAX_CHECKPOINTS_PER_TAB = 5
     private const val CHECKPOINT_MAX_AGE_MS = 15 * 60 * 1000L // 15 minutes
 
+    private fun isRedirectOrTracker(url: String): Boolean {
+        val cleanUrl = url.trim()
+        val lowerUrl = cleanUrl.lowercase()
+        return SecretBrowserTrackingProtection.shouldBlock(cleanUrl, isMainFrame = false) ||
+               lowerUrl.contains("/ad/") || lowerUrl.contains("/ads/") || lowerUrl.contains("redirect") ||
+               lowerUrl.contains("click") || lowerUrl.contains("popunder") || lowerUrl.contains("doubleclick") ||
+               lowerUrl.contains("jump") || lowerUrl.contains("tracker") || lowerUrl.contains("bounce")
+    }
+
     fun recordCheckpoint(
         tabId: String,
         previousUrl: String,
@@ -30,10 +39,7 @@ object SecretBrowserNavigationCheckpointManager {
         if (cleanUrl.isBlank() || cleanUrl == "home" || cleanUrl == "about:blank" || cleanUrl.startsWith("secret://") || cleanUrl.startsWith("data:")) {
             return
         }
-        if (SecretBrowserTrackingProtection.shouldBlock(cleanUrl, isMainFrame = true) ||
-            cleanUrl.contains("/ad/") || cleanUrl.contains("/ads/") || cleanUrl.contains("redirect") ||
-            cleanUrl.contains("click") || cleanUrl.contains("popunder") || cleanUrl.contains("doubleclick")
-        ) {
+        if (isRedirectOrTracker(cleanUrl)) {
             return
         }
         val deque = tabCheckpoints.getOrPut(tabId) { ArrayDeque() }
@@ -66,7 +72,8 @@ object SecretBrowserNavigationCheckpointManager {
                 cp.previousUrl != "about:blank" &&
                 !cp.previousUrl.startsWith("data:") &&
                 cp.previousUrl != currentUrl &&
-                (now - cp.timestamp) <= CHECKPOINT_MAX_AGE_MS
+                (now - cp.timestamp) <= CHECKPOINT_MAX_AGE_MS &&
+                !isRedirectOrTracker(cp.previousUrl)
             }
             return valid != null
         }
@@ -83,7 +90,8 @@ object SecretBrowserNavigationCheckpointManager {
                     candidate.previousUrl != "about:blank" &&
                     !candidate.previousUrl.startsWith("data:") &&
                     candidate.previousUrl != currentUrl &&
-                    (now - candidate.timestamp) <= CHECKPOINT_MAX_AGE_MS
+                    (now - candidate.timestamp) <= CHECKPOINT_MAX_AGE_MS &&
+                    !isRedirectOrTracker(candidate.previousUrl)
                 ) {
                     return candidate.previousUrl
                 }
@@ -102,7 +110,8 @@ object SecretBrowserNavigationCheckpointManager {
                 cp.previousUrl != "about:blank" &&
                 !cp.previousUrl.startsWith("data:") &&
                 cp.previousUrl != currentUrl &&
-                (now - cp.timestamp) <= CHECKPOINT_MAX_AGE_MS
+                (now - cp.timestamp) <= CHECKPOINT_MAX_AGE_MS &&
+                !isRedirectOrTracker(cp.previousUrl)
             }
             return candidate?.previousUrl
         }

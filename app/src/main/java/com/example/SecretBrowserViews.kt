@@ -3935,29 +3935,87 @@ fun PrivateBrowserSection(
     val reload: () -> Unit = {
         activeGeckoSession?.reload()
     }
-    val goBack: () -> Unit = {
-        if (activeGeckoSession != null && activeTab?.canGoBack == true) {
-            // Priority 1: Navigate backward through GeckoView browser session history
-            activeGeckoSession.goBack()
-        } else if (activeTab != null && SecretBrowserNavigationCheckpointManager.hasValidCheckpoint(activeTab.id, activeTab.url)) {
-            // Priority 2: Navigate backward using custom navigation checkpoint backup (e.g. for redirects/ad loops)
-            val prevUrl = SecretBrowserNavigationCheckpointManager.popValidCheckpoint(activeTab.id, activeTab.url)
-            if (prevUrl != null) {
-                loadUrl(prevUrl)
+    val authBackCounts = remember { mutableStateMapOf<String, Int>() }
+    val lastAuthHosts = remember { mutableStateMapOf<String, String>() }
+
+    val performBackNavigation: () -> Unit = {
+        val tab = activeTab
+        val session = activeGeckoSession
+        if (tab != null) {
+            val currentUrl = tab.url
+            val currentHost = try { java.net.URI(currentUrl).host } catch (_: Exception) { null }
+            val isLoginOrSignup = currentUrl.lowercase().let { 
+                it.contains("/login") || it.contains("/signup") || it.contains("/register") || it.contains("/accounts/login")
             }
-        } else if (activeTab?.parentTabId != null && tabs.any { it.id == activeTab.parentTabId }) {
-            // Priority 3: If this was a popup/child tab with exhausted history, close it and return to parent tab
-            stopLoading()
-            closeTab(activeTab.id)
-        } else if (activeTab != null && !isHome && activeTab.url != "home" && activeTab.url.isNotBlank()) {
-            // Priority 4: Return from web page to browser home dashboard
-            stopLoading()
-            loadUrl("home")
-        } else if (isHome && tabs.size > 1 && activeTab != null) {
-            // Priority 5: If on home and multiple tabs exist, close tab and switch to remaining tab
-            stopLoading()
-            closeTab(activeTab.id)
+            var forceHomeExit = false
+
+            if (isLoginOrSignup && !currentHost.isNullOrBlank()) {
+                val lastHost = lastAuthHosts[tab.id] ?: ""
+                if (lastHost == currentHost) {
+                    val count = (authBackCounts[tab.id] ?: 0) + 1
+                    authBackCounts[tab.id] = count
+                    if (count >= 2) {
+                        forceHomeExit = true
+                    }
+                } else {
+                    lastAuthHosts[tab.id] = currentHost
+                    authBackCounts[tab.id] = 1
+                }
+            } else if (!currentHost.isNullOrBlank()) {
+                // Only clear tracking if the user successfully navigates away to a COMPLETELY different host
+                val lastHost = lastAuthHosts[tab.id] ?: ""
+                if (lastHost.isNotEmpty() && lastHost != currentHost) {
+                    lastAuthHosts.remove(tab.id)
+                    authBackCounts.remove(tab.id)
+                }
+            }
+
+            if (forceHomeExit) {
+                lastAuthHosts.remove(tab.id)
+                authBackCounts.remove(tab.id)
+                stopLoading()
+                loadUrl("home")
+            } else {
+                val topCheckpointUrl = SecretBrowserNavigationCheckpointManager.peekValidCheckpoint(tab.id, currentUrl)
+                var shouldBypassGoBackWithCheckpoint = false
+                if (currentUrl.isNotEmpty() && topCheckpointUrl != null) {
+                    try {
+                        val currentHostVal = java.net.URI(currentUrl).host
+                        val topHost = java.net.URI(topCheckpointUrl).host
+                        shouldBypassGoBackWithCheckpoint = !currentHostVal.isNullOrBlank() && 
+                                                           !topHost.isNullOrBlank() && 
+                                                           currentHostVal != topHost
+                    } catch (_: Exception) {}
+                }
+
+                if (shouldBypassGoBackWithCheckpoint) {
+                    val prevUrl = SecretBrowserNavigationCheckpointManager.popValidCheckpoint(tab.id, currentUrl)
+                    if (prevUrl != null) {
+                        loadUrl(prevUrl)
+                    }
+                } else if (session != null && tab.canGoBack == true) {
+                    session.goBack()
+                } else if (SecretBrowserNavigationCheckpointManager.hasValidCheckpoint(tab.id, currentUrl)) {
+                    val prevUrl = SecretBrowserNavigationCheckpointManager.popValidCheckpoint(tab.id, currentUrl)
+                    if (prevUrl != null) {
+                        loadUrl(prevUrl)
+                    }
+                } else if (tab.parentTabId != null && tabs.any { it.id == tab.parentTabId }) {
+                    stopLoading()
+                    closeTab(tab.id)
+                } else if (!isHome && tab.url != "home" && tab.url.isNotBlank()) {
+                    stopLoading()
+                    loadUrl("home")
+                } else if (isHome && tabs.size > 1) {
+                    stopLoading()
+                    closeTab(tab.id)
+                }
+            }
         }
+    }
+
+    val goBack: () -> Unit = {
+        performBackNavigation()
     }
     val goForward: () -> Unit = {
         activeGeckoSession?.goForward()
@@ -3992,27 +4050,8 @@ fun PrivateBrowserSection(
             showMenu = false
         } else if (showFindInPage) {
             closeFindInPage()
-        } else if (activeGeckoSession != null && activeTab?.canGoBack == true) {
-            // Priority 1: Navigate backward through the GeckoView browser session history
-            activeGeckoSession.goBack()
-        } else if (activeTab != null && SecretBrowserNavigationCheckpointManager.hasValidCheckpoint(activeTab.id, activeTab.url)) {
-            // Priority 2: Navigate backward using custom navigation checkpoint backup (e.g. for redirects/ad loops)
-            val prevUrl = SecretBrowserNavigationCheckpointManager.popValidCheckpoint(activeTab.id, activeTab.url)
-            if (prevUrl != null) {
-                loadUrl(prevUrl)
-            }
-        } else if (activeTab?.parentTabId != null && tabs.any { it.id == activeTab.parentTabId }) {
-            // Priority 3: If this was a popup/child tab with exhausted history, closing it returns directly to the originating tab
-            stopLoading()
-            closeTab(activeTab.id)
-        } else if (activeTab != null && !isHome && activeTab.url != "home" && activeTab.url.isNotBlank()) {
-            // Priority 4: Return from web page to browser home dashboard
-            stopLoading()
-            loadUrl("home")
-        } else if (isHome && tabs.size > 1 && activeTab != null) {
-            // Priority 5: If on home and multiple tabs exist, closing tab returns to remaining tab
-            stopLoading()
-            closeTab(activeTab.id)
+        } else if (!isHome || tabs.size > 1) {
+            performBackNavigation()
         } else if (isHome) {
             // Priority 6: Only when confirmed on the browser Home screen on the last tab, exit to vault
             onExit()
