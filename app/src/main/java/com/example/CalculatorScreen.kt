@@ -2539,6 +2539,7 @@ fun VaultTabUnlockedContent(
                                 when (panicExitActionVal) {
                                     "calculator" -> {
                                         Toast.makeText(context, "Shake to Exit: Vault locked!", Toast.LENGTH_SHORT).show()
+                                        // The lockVault() call above already changes the state to the calculator, but let's be explicit if needed
                                     }
                                     "home" -> {
                                         Toast.makeText(context, "Shake to Exit: Returning to Home...", Toast.LENGTH_SHORT).show()
@@ -3122,8 +3123,12 @@ fun VaultTabUnlockedContent(
             androidx.compose.animation.AnimatedContent(
                 targetState = activeSection,
                 transitionSpec = {
-                    (fadeIn(animationSpec = tween(300)) + scaleIn(initialScale = 0.95f, animationSpec = tween(300)))
-                        .togetherWith(fadeOut(animationSpec = tween(300)) + scaleOut(targetScale = 0.95f, animationSpec = tween(300)))
+                    if (targetState == "PrivateBrowser" || initialState == "PrivateBrowser" || targetState == "Private Browser" || initialState == "Private Browser") {
+                        fadeIn(animationSpec = tween(150)).togetherWith(fadeOut(animationSpec = tween(150)))
+                    } else {
+                        (fadeIn(animationSpec = tween(300)) + scaleIn(initialScale = 0.95f, animationSpec = tween(300)))
+                            .togetherWith(fadeOut(animationSpec = tween(300)) + scaleOut(targetScale = 0.95f, animationSpec = tween(300)))
+                    }
                 },
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 label = "SectionTransition"
@@ -10447,6 +10452,13 @@ fun clearAllBrowsingData(
     tabs: androidx.compose.runtime.snapshots.SnapshotStateList<TabState>
 ) {
     tabs.clear()
+    try {
+        val prefs = context.getSharedPreferences("exchange_calc_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit()
+            .remove("browser_tabs")
+            .remove("browser_active_tab_id")
+            .commit()
+    } catch (e: Exception) {}
     try {
         GeckoSessionManager.destroyAllSessions()
     } catch (e: Exception) {}

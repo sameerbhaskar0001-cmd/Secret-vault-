@@ -30,6 +30,12 @@ object SecretBrowserNavigationCheckpointManager {
         if (cleanUrl.isBlank() || cleanUrl == "home" || cleanUrl == "about:blank" || cleanUrl.startsWith("secret://") || cleanUrl.startsWith("data:")) {
             return
         }
+        if (SecretBrowserTrackingProtection.shouldBlock(cleanUrl, isMainFrame = true) ||
+            cleanUrl.contains("/ad/") || cleanUrl.contains("/ads/") || cleanUrl.contains("redirect") ||
+            cleanUrl.contains("click") || cleanUrl.contains("popunder") || cleanUrl.contains("doubleclick")
+        ) {
+            return
+        }
         val deque = tabCheckpoints.getOrPut(tabId) { ArrayDeque() }
         synchronized(deque) {
             if (deque.isNotEmpty() && deque.peekFirst()?.previousUrl == cleanUrl) {

@@ -128,12 +128,13 @@ object GeckoSessionManager {
                 url: String?, 
                 perms: List<GeckoSession.PermissionDelegate.ContentPermission>
             ) {
-                if (!url.isNullOrEmpty() && url != "about:blank" && !url.startsWith("data:")) {
+                if (!url.isNullOrBlank() && url != "about:blank" && !url.startsWith("data:")) {
                     val previous = currentMainUrl
-                    if (previous.isNotBlank() && previous != "home" && previous != "about:blank" && !previous.startsWith("data:") && previous != url) {
+                    if (!previous.isNullOrBlank() && previous != "home" && previous != "about:blank" && previous != url && !previous.startsWith("data:")) {
                         SecretBrowserNavigationCheckpointManager.recordCheckpoint(
                             tabId = tabId,
                             previousUrl = previous,
+                            previousTitle = null,
                             reason = "location_change"
                         )
                     }
@@ -185,7 +186,7 @@ object GeckoSessionManager {
                 }
                 // Return null to allow GeckoView to display its native error page,
                 // which includes SSL certificate warnings and "Accept the Risk" buttons.
-                return org.mozilla.geckoview.GeckoResult.fromValue(null)
+                return null
             }
         }
 

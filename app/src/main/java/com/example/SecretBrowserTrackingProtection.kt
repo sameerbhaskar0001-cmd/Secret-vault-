@@ -138,6 +138,11 @@ object SecretBrowserTrackingProtection {
         if (url.isNullOrBlank()) {
             return false
         }
+        
+        // Never block main frame navigation (ad redirects) to preserve back history and avoid dead ends
+        if (isMainFrame) {
+            return false
+        }
 
         // Check if tracking protection is active globally or via per-site override
         val currentHost = currentSiteUrl?.let { extractHost(it) }

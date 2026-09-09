@@ -1143,7 +1143,7 @@ fun SecretBrowserHome(
             }
         }
 
-        Spacer(modifier = Modifier.fillMaxWidth().navigationBarsPadding())
+        
     }
 }
 
@@ -3580,7 +3580,7 @@ fun PrivateBrowserSection(
                 val currentUrl = newTab.url
                 val currentTitle = newTab.title
                 if (!newTab.isLoading && oldTab.isLoading) {
-                    if (currentUrl != "home" && currentUrl != "about:blank" && currentUrl.isNotEmpty() &&
+                    if (currentUrl.isNotBlank() && currentUrl != "home" && currentUrl != "about:blank" &&
                         !currentUrl.startsWith("data:") && !currentUrl.startsWith("file:") && !currentUrl.startsWith("about:")) {
                         viewModel.addBrowserHistory(currentTitle, currentUrl)
                     }
@@ -3762,7 +3762,7 @@ fun PrivateBrowserSection(
     } else {
         null
     }
-    val isHome = activeTab?.url == "home" || activeTab?.url == "about:blank" || activeTab?.url?.isEmpty() == true
+    val isHome = activeTab == null || activeTab.url == "home" || activeTab.url == "about:blank" || activeTab.url.isEmpty()
 
     val currentUrl = activeTab?.url ?: ""
     val currentHost = remember(currentUrl) {
@@ -3940,8 +3940,7 @@ fun PrivateBrowserSection(
             // Priority 1: Navigate backward through GeckoView browser session history
             activeGeckoSession.goBack()
         } else if (activeTab != null && SecretBrowserNavigationCheckpointManager.hasValidCheckpoint(activeTab.id, activeTab.url)) {
-            // Priority 2: Fallback to pre-redirect / same-tab replacement checkpoint if GeckoView history is lost
-            stopLoading()
+            // Priority 2: Navigate backward using custom navigation checkpoint backup (e.g. for redirects/ad loops)
             val prevUrl = SecretBrowserNavigationCheckpointManager.popValidCheckpoint(activeTab.id, activeTab.url)
             if (prevUrl != null) {
                 loadUrl(prevUrl)
@@ -3950,7 +3949,7 @@ fun PrivateBrowserSection(
             // Priority 3: If this was a popup/child tab with exhausted history, close it and return to parent tab
             stopLoading()
             closeTab(activeTab.id)
-        } else if (activeTab != null && !isHome && activeTab.url != "home" && activeTab.url.isNotEmpty()) {
+        } else if (activeTab != null && !isHome && activeTab.url != "home" && activeTab.url.isNotBlank()) {
             // Priority 4: Return from web page to browser home dashboard
             stopLoading()
             loadUrl("home")
@@ -3997,8 +3996,7 @@ fun PrivateBrowserSection(
             // Priority 1: Navigate backward through the GeckoView browser session history
             activeGeckoSession.goBack()
         } else if (activeTab != null && SecretBrowserNavigationCheckpointManager.hasValidCheckpoint(activeTab.id, activeTab.url)) {
-            // Priority 2: Fallback to pre-redirect/same-tab replacement checkpoint if GeckoView history is lost
-            stopLoading()
+            // Priority 2: Navigate backward using custom navigation checkpoint backup (e.g. for redirects/ad loops)
             val prevUrl = SecretBrowserNavigationCheckpointManager.popValidCheckpoint(activeTab.id, activeTab.url)
             if (prevUrl != null) {
                 loadUrl(prevUrl)
@@ -4007,7 +4005,7 @@ fun PrivateBrowserSection(
             // Priority 3: If this was a popup/child tab with exhausted history, closing it returns directly to the originating tab
             stopLoading()
             closeTab(activeTab.id)
-        } else if (activeTab != null && !isHome && activeTab.url != "home" && activeTab.url.isNotEmpty()) {
+        } else if (activeTab != null && !isHome && activeTab.url != "home" && activeTab.url.isNotBlank()) {
             // Priority 4: Return from web page to browser home dashboard
             stopLoading()
             loadUrl("home")
@@ -4684,26 +4682,38 @@ fun PrivateBrowserSection(
                             )
                         }
                         
-                        androidx.compose.material3.DropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false },
-                            offset = androidx.compose.ui.unit.DpOffset(0.dp, 56.dp),
-                            modifier = Modifier
-                                .background(LightBg)
-                                .widthIn(min = 280.dp, max = 320.dp)
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                        @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+                        if (showMenu) {
+                            androidx.compose.material3.ModalBottomSheet(
+                                onDismissRequest = { showMenu = false },
+                                containerColor = LightBg,
+                                dragHandle = { androidx.compose.material3.BottomSheetDefaults.DragHandle(color = TextSecondary) },
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Command Center", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                                IconButton(onClick = { showMenu = false }, modifier = Modifier.size(32.dp)) {
-                                    Icon(Icons.Default.Close, contentDescription = "Close Menu", tint = TextPrimary)
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
+                                val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = screenHeight * 0.6f)
+                                        .padding(horizontal = 16.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("Command Center", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                        IconButton(onClick = { showMenu = false }, modifier = Modifier.size(32.dp)) {
+                                            Icon(Icons.Default.Close, contentDescription = "Close Menu", tint = TextPrimary)
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .weight(1f, fill = false)
+                                            .verticalScroll(rememberScrollState())
+                                    ) {
                         // Category: BROWSER
                         CommandCenterSectionCard(title = "BROWSER") {
                             CommandCenterMenuItem(
@@ -4940,7 +4950,10 @@ fun PrivateBrowserSection(
                             Text("Panic Mode", color = DangerColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                                 Spacer(modifier = Modifier.height(32.dp))
-                                Spacer(modifier = Modifier.fillMaxWidth().navigationBarsPadding())
+                                
+                                    }
+                                }
+                            }
                         }
                     }
                     }

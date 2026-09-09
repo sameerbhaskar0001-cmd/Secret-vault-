@@ -4320,6 +4320,11 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
 
     private fun loadBrowserTabs() {
         try {
+            val clearOnExit = prefs.getBoolean("browser_clear_history", false)
+            if (clearOnExit) {
+                isBrowserTabsLoaded = true
+                return
+            }
             val jsonStr = prefs.getString("browser_tabs", "[]") ?: "[]"
             val activeId = prefs.getString("browser_active_tab_id", null)
             val json = org.json.JSONArray(jsonStr)
