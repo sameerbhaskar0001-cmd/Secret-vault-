@@ -14,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap
 object GeckoSessionManager {
     // Thread-safe map holding the active GeckoSession for each tab ID
     private val activeSessions = ConcurrentHashMap<String, GeckoSession>()
+    private val sessionCanGoBack = ConcurrentHashMap<String, Boolean>()
     
     // Thread-safe maps for update and download callbacks to prevent stale lambdas and memory leaks
     private val onUpdateCallbacks = ConcurrentHashMap<String, ((TabState) -> TabState) -> Unit>()
@@ -94,7 +95,7 @@ object GeckoSessionManager {
                         }
                         return org.mozilla.geckoview.GeckoResult.fromValue(org.mozilla.geckoview.AllowOrDeny.DENY)
                     }
-                    if (url == "about:blank" && currentMainUrl != "home" && currentMainUrl != "about:blank" && currentMainUrl.isNotBlank()) {
+                    if (url == "about:blank" && currentMainUrl != "home" && currentMainUrl != "about:blank" && currentMainUrl.isNotBlank() && sessionCanGoBack[tabId] != true) {
                         return org.mozilla.geckoview.GeckoResult.fromValue(org.mozilla.geckoview.AllowOrDeny.DENY)
                     }
                     if (SecretBrowserTrackingProtection.shouldBlock(url, isMainFrame = true, currentSiteUrl = currentMainUrl)) {
@@ -128,9 +129,9 @@ object GeckoSessionManager {
                 url: String?, 
                 perms: List<GeckoSession.PermissionDelegate.ContentPermission>
             ) {
-                if (!url.isNullOrBlank() && url != "about:blank" && !url.startsWith("data:")) {
+                if (!url.isNullOrBlank() && !url.startsWith("data:")) {
                     val previous = currentMainUrl
-                    if (!previous.isNullOrBlank() && previous != "home" && previous != "about:blank" && previous != url && !previous.startsWith("data:")) {
+                    if (!previous.isNullOrBlank() && previous != "home" && previous != "about:blank" && previous != url && !previous.startsWith("data:") && url != "about:blank") {
                         SecretBrowserNavigationCheckpointManager.recordCheckpoint(
                             tabId = tabId,
                             previousUrl = previous,
@@ -140,12 +141,13 @@ object GeckoSessionManager {
                     }
                     currentMainUrl = url
                     onUpdate { tab ->
-                        tab.copy(url = url)
+                        tab.copy(url = if (url == "about:blank") "home" else url)
                     }
                 }
             }
 
             override fun onCanGoBack(s: GeckoSession, canGoBack: Boolean) {
+                sessionCanGoBack[tabId] = canGoBack
                 onUpdate { tab ->
                     tab.copy(canGoBack = canGoBack)
                 }
@@ -381,6 +383,7 @@ object GeckoSessionManager {
      */
     fun removeAndDestroySession(tabId: String) {
         SecretBrowserNavigationCheckpointManager.clearTabCheckpoints(tabId)
+        sessionCanGoBack.remove(tabId)
         val session = activeSessions.remove(tabId)
         onUpdateCallbacks.remove(tabId)
         onDownloadCallbacks.remove(tabId)
@@ -407,6 +410,7 @@ object GeckoSessionManager {
      */
     fun destroyAllSessions() {
         SecretBrowserNavigationCheckpointManager.clearAll()
+        sessionCanGoBack.clear()
         onUpdateCallbacks.clear()
         onDownloadCallbacks.clear()
         onCrashCallbacks.clear()
