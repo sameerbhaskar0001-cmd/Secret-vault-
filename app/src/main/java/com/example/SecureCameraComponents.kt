@@ -210,8 +210,20 @@ fun SecureCameraView(
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
 
-    androidx.activity.compose.BackHandler(enabled = true) {
+    val cameraSessions by viewModel.secureCameraSessions.collectAsStateWithLifecycle()
+    val remainingSessions = (3 - cameraSessions).coerceAtLeast(0)
+    val isPremium = viewModel.isPremiumUser()
+    val capturedCountThisSession = remember { mutableStateOf(0) }
+
+    val safeDismiss = {
+        if (capturedCountThisSession.value > 0) {
+            viewModel.incrementCameraSessions()
+        }
         onDismiss()
+    }
+
+    androidx.activity.compose.BackHandler(enabled = true) {
+        safeDismiss()
     }
 
     var isFrontCamera by remember { mutableStateOf(false) }
@@ -449,6 +461,7 @@ fun SecureCameraView(
                                                 "Video_$id.mp4",
                                                 "video/mp4"
                                             )
+                                            capturedCountThisSession.value++
                                             if (onMediaCaptured != null) {
                                                 onMediaCaptured(destFile, "video/mp4")
                                             } else {
@@ -522,6 +535,7 @@ fun SecureCameraView(
                                     "Photo_$id.jpg",
                                     "image/jpeg"
                                 )
+                                capturedCountThisSession.value++
                                 if (onMediaCaptured != null) {
                                     onMediaCaptured(destFile, "image/jpeg")
                                 } else {
@@ -660,11 +674,110 @@ fun SecureCameraView(
         )
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-    ) {
+    if (remainingSessions == 0 && !isPremium) {
+        androidx.compose.foundation.layout.Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFF0F172A))
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxWidth(0.85f)
+            ) {
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .background(
+                            androidx.compose.ui.graphics.Brush.radialGradient(
+                                listOf(Color(0xFFFF6A00).copy(alpha = 0.25f), Color.Transparent)
+                            ),
+                            CircleShape
+                        )
+                        .border(1.5.dp, Color(0xFFFF6A00).copy(alpha = 0.5f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.WorkspacePremium,
+                        contentDescription = null,
+                        tint = Color(0xFFFF6A00),
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(28.dp))
+
+                Text(
+                    text = "Your free Secure Camera sessions are used up.",
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "Upgrade to Premium for continued access.",
+                    color = Color(0xFF94A3B8),
+                    fontSize = 14.5.sp,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 21.sp
+                )
+
+                Spacer(modifier = Modifier.height(36.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(1.dp, Color(0xFF334155)),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF94A3B8))
+                    ) {
+                        Text(
+                            text = "Not now",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            viewModel.showPremiumUpgradeDialog = true
+                            onDismiss()
+                        },
+                        modifier = Modifier
+                            .weight(1.25f)
+                            .height(50.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFF6A00)
+                        )
+                    ) {
+                        Text(
+                            text = "Get Premium",
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    } else {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+        ) {
         // Real-time Camera Preview View with Tap-to-Focus, Zoom Gestures, and Double Tap Zoom Toggle
         Box(modifier = Modifier.fillMaxSize()) {
             AndroidView(
@@ -777,12 +890,29 @@ fun SecureCameraView(
             ) {
                 // Exit Button
                 IconButton(
-                    onClick = onDismiss,
+                    onClick = safeDismiss,
                     modifier = Modifier
                         .size(44.dp)
                         .background(Color.White.copy(alpha = 0.12f), CircleShape)
                 ) {
                     Icon(Icons.Default.Close, contentDescription = "Exit Camera", tint = Color.White)
+                }
+
+                // If not premium, show remaining sessions pill
+                if (!isPremium) {
+                    androidx.compose.material3.Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFFFF6A00).copy(alpha = 0.25f),
+                        border = BorderStroke(0.8.dp, Color(0xFFFF6A00).copy(alpha = 0.5f))
+                    ) {
+                        Text(
+                            text = "$remainingSessions free camera sessions remaining",
+                            color = Color(0xFFFF6A00),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
                 }
 
                 // Top Quick settings buttons (Grid, Self-Timer, Flash Mode)
@@ -1243,6 +1373,7 @@ fun SecureCameraView(
                 }
             }
         }
+    }
     }
 }
 

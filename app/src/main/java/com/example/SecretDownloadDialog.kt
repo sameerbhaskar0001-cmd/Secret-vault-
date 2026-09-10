@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -101,6 +102,10 @@ fun SecretBrowserDownloadConfirmDialog(
     val textSub = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
     val orangeAccent = Color(0xFFFF6A00)
 
+    val usesUsed = viewModel.vaultDownloadUses.collectAsState().value
+    val remaining = (3 - usesUsed).coerceAtLeast(0)
+    val isPremium = viewModel.isPremiumUser()
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -127,6 +132,143 @@ fun SecretBrowserDownloadConfirmDialog(
                     .fillMaxWidth()
                     .padding(22.dp)
             ) {
+                if (remaining == 0 && !isPremium) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .background(
+                                        Brush.radialGradient(
+                                            listOf(orangeAccent.copy(alpha = 0.28f), orangeAccent.copy(alpha = 0.06f))
+                                        ),
+                                        CircleShape
+                                    )
+                                    .border(1.dp, orangeAccent.copy(alpha = 0.4f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.WorkspacePremium,
+                                    contentDescription = null,
+                                    tint = orangeAccent,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+
+                            Column {
+                                Text(
+                                    text = "Premium Features",
+                                    color = textHead,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.2.sp
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = textSub,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Text(
+                        text = "Your free Vault downloads are used up.",
+                        color = textHead,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = "Upgrade to Premium to keep saving downloads directly to your Vault. Alternatively, you can save this file to your phone storage for free.",
+                        color = textSub,
+                        fontSize = 13.5.sp,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 19.sp,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                viewModel.showPremiumUpgradeDialog = true
+                                onDismiss()
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = orangeAccent
+                            )
+                        ) {
+                            Text(
+                                text = "Get Premium",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                onConfirm(DownloadDestination.DEVICE)
+                                onDismiss()
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            border = BorderStroke(1.dp, strokeColor),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = textHead)
+                        ) {
+                            Text(
+                                text = "Save to Phone",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        TextButton(
+                            onClick = onDismiss,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp)
+                        ) {
+                            Text(
+                                text = "Not now",
+                                color = textSub,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                } else {
                 // Top Header Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -346,6 +488,29 @@ fun SecretBrowserDownloadConfirmDialog(
                     }
                 }
 
+                if (!isPremium) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            tint = orangeAccent,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "$remaining free uses remaining",
+                            color = orangeAccent,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(20.dp))
 
                 // Action Buttons Row
@@ -400,6 +565,7 @@ fun SecretBrowserDownloadConfirmDialog(
                             fontWeight = FontWeight.Bold
                         )
                     }
+                }
                 }
             }
         }

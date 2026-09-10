@@ -3606,7 +3606,7 @@ fun VaultTabUnlockedContent(
                                 }
                                 Icon(Icons.Default.ArrowForward, contentDescription = "Open", tint = Color.White.copy(alpha = 0.3f), modifier = Modifier.size(14.dp))
                             }
-                            Spacer(modifier = Modifier.fillMaxWidth().navigationBarsPadding())
+                            Spacer(modifier = Modifier.fillMaxWidth().height(80.dp).navigationBarsPadding())
                         }
                     }
                 "Photos", "Videos", "Documents", "Notes", "Music & Audio" -> {
@@ -4318,7 +4318,7 @@ fun VaultTabUnlockedContent(
                             onClick = { activeSection = "About" }
                         )
 
-                        Spacer(modifier = Modifier.fillMaxWidth().navigationBarsPadding())
+                        Spacer(modifier = Modifier.fillMaxWidth().height(80.dp).navigationBarsPadding())
                     }
                 }
                 "Privacy Settings" -> {
@@ -7523,9 +7523,12 @@ fun VaultTabUnlockedContent(
                     }
 
                     // --- Material 3 Dialog for Premium Upgrading ---
-                    if (showPremiumDialog) {
+                    if (showPremiumDialog || viewModel.showPremiumUpgradeDialog) {
                         AlertDialog(
-                            onDismissRequest = { showPremiumDialog = false },
+                            onDismissRequest = { 
+                                showPremiumDialog = false 
+                                viewModel.showPremiumUpgradeDialog = false
+                            },
                             containerColor = Color(0xFF161B2B),
                             title = {
                                 Text(
@@ -7563,6 +7566,7 @@ fun VaultTabUnlockedContent(
                                             .clickable {
                                                 viewModel.setPremiumState("Free")
                                                 showPremiumDialog = false
+                                                viewModel.showPremiumUpgradeDialog = false
                                                 android.widget.Toast.makeText(context, "Status set to Free Vault!", android.widget.Toast.LENGTH_SHORT).show()
                                             }
                                             .padding(16.dp),
@@ -7598,6 +7602,7 @@ fun VaultTabUnlockedContent(
                                             .clickable {
                                                 viewModel.setPremiumState("Premium")
                                                 showPremiumDialog = false
+                                                viewModel.showPremiumUpgradeDialog = false
                                                 android.widget.Toast.makeText(context, "Upgraded to Premium Vault!", android.widget.Toast.LENGTH_SHORT).show()
                                             }
                                             .padding(16.dp),
@@ -7633,6 +7638,7 @@ fun VaultTabUnlockedContent(
                                             .clickable {
                                                 viewModel.setPremiumState("Lifetime")
                                                 showPremiumDialog = false
+                                                viewModel.showPremiumUpgradeDialog = false
                                                 android.widget.Toast.makeText(context, "Upgraded to Lifetime Gold VIP!", android.widget.Toast.LENGTH_SHORT).show()
                                             }
                                             .padding(16.dp),
@@ -7654,7 +7660,10 @@ fun VaultTabUnlockedContent(
                             },
                             confirmButton = {
                                 TextButton(
-                                    onClick = { showPremiumDialog = false }
+                                    onClick = { 
+                                        showPremiumDialog = false 
+                                        viewModel.showPremiumUpgradeDialog = false
+                                    }
                                 ) {
                                     Text("Dismiss", color = ThemePurple, fontWeight = FontWeight.Bold)
                                 }

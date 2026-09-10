@@ -1021,6 +1021,36 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
     private val _premiumState = MutableStateFlow(prefs.getString("premium_state", "Free") ?: "Free")
     val premiumState: StateFlow<String> = _premiumState.asStateFlow()
 
+    // --- Phase 2A: Download -> Vault & Secure Camera Trial Counters ---
+    private val _vaultDownloadUses = MutableStateFlow(prefs.getInt("vault_download_uses", 0))
+    val vaultDownloadUses: StateFlow<Int> = _vaultDownloadUses.asStateFlow()
+
+    private val _secureCameraSessions = MutableStateFlow(prefs.getInt("secure_camera_sessions", 0))
+    val secureCameraSessions: StateFlow<Int> = _secureCameraSessions.asStateFlow()
+
+    var showPremiumUpgradeDialog by androidx.compose.runtime.mutableStateOf(false)
+
+    fun isPremiumUser(): Boolean {
+        val state = _premiumState.value
+        return state == "Premium" || state == "Lifetime"
+    }
+
+    fun incrementVaultDownloadUses() {
+        if (!isPremiumUser()) {
+            val current = _vaultDownloadUses.value
+            prefs.edit().putInt("vault_download_uses", current + 1).apply()
+            _vaultDownloadUses.value = current + 1
+        }
+    }
+
+    fun incrementCameraSessions() {
+        if (!isPremiumUser()) {
+            val current = _secureCameraSessions.value
+            prefs.edit().putInt("secure_camera_sessions", current + 1).apply()
+            _secureCameraSessions.value = current + 1
+        }
+    }
+
     private val _vaultId = MutableStateFlow(getOrCreateVaultId())
     val vaultId: StateFlow<String> = _vaultId.asStateFlow()
 
@@ -4486,51 +4516,84 @@ val downloads: StateFlow<List<DownloadTask>> = _downloads.asStateFlow()
 
     fun saveDownloadedFile(context: Context, filename: String, mimeType: String, bytes: ByteArray): String? {
         return try {
-            val downloadsDir = File(context.filesDir, "downloads")
-            if (!downloadsDir.exists()) {
-                downloadsDir.mkdirs()
+            val resolver = context.contentResolver
+            var savedPath: String? = null
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                val contentValues = android.content.ContentValues().apply {
+                    put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                    put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS)
+                }
+                val uri = resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                if (uri != null) {
+                    resolver.openOutputStream(uri)?.use { output ->
+                        output.write(bytes)
+                    }
+                    savedPath = uri.toString()
+                }
+            } else {
+                val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+                if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                var destFile = File(downloadsDir, filename)
+                if (destFile.exists()) {
+                    val baseName = File(filename).nameWithoutExtension
+                    val ext = File(filename).extension
+                    destFile = File(downloadsDir, "${baseName}_${System.currentTimeMillis()}.$ext")
+                }
+                java.io.FileOutputStream(destFile).use { output ->
+                    output.write(bytes)
+                }
+                savedPath = destFile.absolutePath
             }
-            val destFile = File(downloadsDir, filename)
-            var finalFile = destFile
-            var count = 1
-            while (finalFile.exists()) {
-                val nameWithoutExt = finalFile.nameWithoutExtension
-                val ext = finalFile.extension
-                finalFile = File(downloadsDir, if (ext.isNotEmpty()) "${nameWithoutExt}_$count.$ext" else "${nameWithoutExt}_$count")
-                count++
-            }
-            finalFile.writeBytes(bytes)
-            finalFile.absolutePath
+            savedPath
         } catch (e: Exception) {
-            android.util.Log.e("BrowserDownload", "Failed to save downloaded file", e)
+            android.util.Log.e("BrowserDownload", "Failed to save downloaded bytes to public storage", e)
             null
         }
     }
 
     fun saveDownloadedFile(context: Context, filename: String, mimeType: String, sourceFile: File): String? {
         return try {
-            val downloadsDir = File(context.filesDir, "downloads")
-            if (!downloadsDir.exists()) downloadsDir.mkdirs()
-            val destFile = File(downloadsDir, filename)
-            var finalFile = destFile
-            var count = 1
-            while (finalFile.exists()) {
-                val nameWithoutExt = finalFile.nameWithoutExtension
-                val ext = finalFile.extension
-                finalFile = File(downloadsDir, if (ext.isNotEmpty()) "${nameWithoutExt}_$count.$ext" else "${nameWithoutExt}_$count")
-                count++
-            }
-            if (!sourceFile.renameTo(finalFile)) {
-                sourceFile.inputStream().buffered().use { input ->
-                    finalFile.outputStream().buffered().use { output ->
+            val resolver = context.contentResolver
+            var savedPath: String? = null
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                val contentValues = android.content.ContentValues().apply {
+                    put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                    put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS)
+                }
+                val uri = resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                if (uri != null) {
+                    resolver.openOutputStream(uri)?.use { output ->
+                        sourceFile.inputStream().use { input ->
+                            input.copyTo(output)
+                        }
+                    }
+                    savedPath = uri.toString()
+                }
+            } else {
+                val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+                if (!downloadsDir.exists()) downloadsDir.mkdirs()
+                var destFile = File(downloadsDir, filename)
+                if (destFile.exists()) {
+                    val baseName = File(filename).nameWithoutExtension
+                    val ext = File(filename).extension
+                    destFile = File(downloadsDir, "${baseName}_${System.currentTimeMillis()}.$ext")
+                }
+                sourceFile.inputStream().use { input ->
+                    java.io.FileOutputStream(destFile).use { output ->
                         input.copyTo(output)
                     }
                 }
+                savedPath = destFile.absolutePath
+            }
+            // Always clean up the temporary sourceFile
+            if (sourceFile.exists()) {
                 sourceFile.delete()
             }
-            finalFile.absolutePath
+            savedPath
         } catch (e: Exception) {
-            android.util.Log.e("BrowserDownload", "Failed to save downloaded file", e)
+            android.util.Log.e("BrowserDownload", "Failed to save downloaded file to public storage", e)
             null
         }
     }
@@ -4904,6 +4967,9 @@ val downloads: StateFlow<List<DownloadTask>> = _downloads.asStateFlow()
                     saveDownloads(finalDownloads)
                     if (success) {
                         android.widget.Toast.makeText(context, "Download Complete: $resolvedFinalFilename", android.widget.Toast.LENGTH_LONG).show()
+                        if (destination == DownloadDestination.SECRET_VAULT) {
+                            incrementVaultDownloadUses()
+                        }
                     } else {
                         android.widget.Toast.makeText(context, "Download Failed: $resolvedFinalFilename (Save error)", android.widget.Toast.LENGTH_SHORT).show()
                     }
