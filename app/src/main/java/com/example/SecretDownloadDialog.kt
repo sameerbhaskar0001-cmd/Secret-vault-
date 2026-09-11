@@ -104,7 +104,7 @@ fun SecretBrowserDownloadConfirmDialog(
 
     val usesUsed = viewModel.vaultDownloadUses.collectAsState().value
     val remaining = (3 - usesUsed).coerceAtLeast(0)
-    val isPremium = viewModel.isPremiumUser()
+    val isPremium = viewModel.isBrowserPremium()
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -505,6 +505,27 @@ fun SecretBrowserDownloadConfirmDialog(
                         Text(
                             text = "$remaining free uses remaining",
                             color = orangeAccent,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                } else {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = Color(0xFF10B981),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "✨ Premium Unlimited Downloads active",
+                            color = Color(0xFF10B981),
                             fontSize = 12.5.sp,
                             fontWeight = FontWeight.SemiBold
                         )

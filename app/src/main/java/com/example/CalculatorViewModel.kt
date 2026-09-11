@@ -234,6 +234,32 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
 
 
     private val prefs = application.getSharedPreferences("exchange_calc_prefs", Context.MODE_PRIVATE)
+
+    // --- Phase 3.3: Vault Coins & Rewards System ---
+    private val _vaultCoins = MutableStateFlow(prefs.getInt("vault_coins_balance", 0))
+    val vaultCoins: StateFlow<Int> = _vaultCoins.asStateFlow()
+
+    private val _passBrowserExpiry = MutableStateFlow(prefs.getLong("pass_browser_expiry", 0L))
+    val passBrowserExpiry: StateFlow<Long> = _passBrowserExpiry.asStateFlow()
+
+    private val _passCameraExpiry = MutableStateFlow(prefs.getLong("pass_camera_expiry", 0L))
+    val passCameraExpiry: StateFlow<Long> = _passCameraExpiry.asStateFlow()
+
+    private val _passThemeExpiry = MutableStateFlow(prefs.getLong("pass_theme_expiry", 0L))
+    val passThemeExpiry: StateFlow<Long> = _passThemeExpiry.asStateFlow()
+
+    private val _passPremiumExpiry = MutableStateFlow(prefs.getLong("pass_premium_expiry", 0L))
+    val passPremiumExpiry: StateFlow<Long> = _passPremiumExpiry.asStateFlow()
+
+    private val _dailyRewardLastClaimed = MutableStateFlow(prefs.getLong("daily_reward_last_claimed", 0L))
+    val dailyRewardLastClaimed: StateFlow<Long> = _dailyRewardLastClaimed.asStateFlow()
+
+    private val _luckyChestLastOpened = MutableStateFlow(prefs.getLong("lucky_chest_last_opened", 0L))
+    val luckyChestLastOpened: StateFlow<Long> = _luckyChestLastOpened.asStateFlow()
+
+    private val _rewardedAdsTodayCount = MutableStateFlow(0)
+    val rewardedAdsTodayCount: StateFlow<Int> = _rewardedAdsTodayCount.asStateFlow()
+
     val initialSystemTimezone: String = java.util.TimeZone.getDefault().id
 
     // --- Preferred Time Zone State ---
@@ -351,6 +377,7 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
     val recoveryCode: StateFlow<String> = _recoveryCode.asStateFlow()
 
     init {
+        syncRewardedAdsLimit()
         applyTimezone(_preferredTimezone.value)
         if (googleDriveManager.isConnected) {
             fetchCloudBackupInfo()
@@ -1028,15 +1055,216 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
     private val _secureCameraSessions = MutableStateFlow(prefs.getInt("secure_camera_sessions", 0))
     val secureCameraSessions: StateFlow<Int> = _secureCameraSessions.asStateFlow()
 
+    // --- Phase 2B: Monitoring Limits ---
+    private val _monitoringFailedAttempts = MutableStateFlow(prefs.getInt("monitoring_failed_attempts", 0))
+    val monitoringFailedAttempts: StateFlow<Int> = _monitoringFailedAttempts.asStateFlow()
+
+    private val _showMonitoringLimitDialog = MutableStateFlow(false)
+    val showMonitoringLimitDialog: StateFlow<Boolean> = _showMonitoringLimitDialog.asStateFlow()
+
+    fun setShowMonitoringLimitDialog(show: Boolean) {
+        _showMonitoringLimitDialog.value = show
+    }
+
+    fun getMonitoringMaxAttempts(): Int {
+        return if (isPremiumUser()) 15 else 5
+    }
+
+    fun getMonitoringRemainingAttempts(): Int {
+        val max = getMonitoringMaxAttempts()
+        val used = _monitoringFailedAttempts.value
+        return (max - used).coerceAtLeast(0)
+    }
+
+    fun incrementMonitoringFailedAttempts() {
+        val current = _monitoringFailedAttempts.value
+        val max = getMonitoringMaxAttempts()
+        if (current < max) {
+            val next = current + 1
+            _monitoringFailedAttempts.value = next
+            prefs.edit().putInt("monitoring_failed_attempts", next).apply()
+        }
+    }
+
+
+
+    fun syncRewardedAdsLimit() {
+        val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+        val savedDate = try { prefs.getString("rewarded_ads_today_date", "") ?: "" } catch(e: Exception) { "" }
+        if (savedDate == todayStr) {
+            _rewardedAdsTodayCount.value = try { prefs.getInt("rewarded_ads_today_count", 0) } catch(e: Exception) { 0 }
+        } else {
+            try {
+                prefs.edit().putString("rewarded_ads_today_date", todayStr).putInt("rewarded_ads_today_count", 0).apply()
+            } catch(e: Exception) {
+                // Ignore mock preferences issues in tests
+            }
+            _rewardedAdsTodayCount.value = 0
+        }
+    }
+
+    fun claimDailyReward(): Int {
+        val now = System.currentTimeMillis()
+        val lastClaimed = _dailyRewardLastClaimed.value
+        if (now - lastClaimed < 24 * 60 * 60 * 1000) {
+            return 0
+        }
+        val possibleRewards = listOf(2, 5, 10)
+        val reward = possibleRewards.random()
+        val newBalance = _vaultCoins.value + reward
+        
+        prefs.edit()
+            .putInt("vault_coins_balance", newBalance)
+            .putLong("daily_reward_last_claimed", now)
+            .apply()
+            
+        _vaultCoins.value = newBalance
+        _dailyRewardLastClaimed.value = now
+        return reward
+    }
+
+    fun openLuckyChest(): Pair<String, Any> {
+        val now = System.currentTimeMillis()
+        val lastOpened = _luckyChestLastOpened.value
+        if (now - lastOpened < 24 * 60 * 60 * 1000) {
+            return "Cooldown" to 0L
+        }
+
+        val isPass = (1..100).random() <= 30
+        val outcome: Pair<String, Any> = if (isPass) {
+            val passes = listOf("Browser Pass", "Camera Pass", "Premium Theme Pass")
+            val selectedPass = passes.random()
+            val expiryTime = now + 12 * 60 * 60 * 1000
+            when (selectedPass) {
+                "Browser Pass" -> prefs.edit().putLong("pass_browser_expiry", expiryTime).apply()
+                "Camera Pass" -> prefs.edit().putLong("pass_camera_expiry", expiryTime).apply()
+                "Premium Theme Pass" -> prefs.edit().putLong("pass_theme_expiry", expiryTime).apply()
+            }
+            "Pass" to selectedPass
+        } else {
+            val possibleCoins = listOf(5, 10, 20, 30)
+            val coinsReward = possibleCoins.random()
+            val newBalance = _vaultCoins.value + coinsReward
+            prefs.edit().putInt("vault_coins_balance", newBalance).apply()
+            _vaultCoins.value = newBalance
+            "Coins" to coinsReward
+        }
+
+        prefs.edit().putLong("lucky_chest_last_opened", now).apply()
+        _luckyChestLastOpened.value = now
+        return outcome
+    }
+
+    fun completeRewardedAd(): Boolean {
+        val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+        val savedDate = prefs.getString("rewarded_ads_today_date", "") ?: ""
+        var count = if (savedDate == todayStr) prefs.getInt("rewarded_ads_today_count", 0) else 0
+
+        if (count >= 8) {
+            return false
+        }
+
+        count++
+        val newBalance = _vaultCoins.value + 10
+        prefs.edit()
+            .putString("rewarded_ads_today_date", todayStr)
+            .putInt("rewarded_ads_today_count", count)
+            .putInt("vault_coins_balance", newBalance)
+            .apply()
+
+        _rewardedAdsTodayCount.value = count
+        _vaultCoins.value = newBalance
+        return true
+    }
+
+    fun redeemCoins(cost: Int, passType: String): Boolean {
+        val currentBalance = _vaultCoins.value
+        if (currentBalance < cost) {
+            return false
+        }
+
+        val now = System.currentTimeMillis()
+        val newBalance = currentBalance - cost
+        
+        when (passType) {
+            "Browser Pass" -> {
+                val currentExpiry = prefs.getLong("pass_browser_expiry", 0L)
+                val base = if (currentExpiry > now) currentExpiry else now
+                val newExpiry = base + 12 * 60 * 60 * 1000L
+                prefs.edit().putLong("pass_browser_expiry", newExpiry).apply()
+                _passBrowserExpiry.value = newExpiry
+            }
+            "Camera Pass" -> {
+                val currentExpiry = prefs.getLong("pass_camera_expiry", 0L)
+                val base = if (currentExpiry > now) currentExpiry else now
+                val newExpiry = base + 12 * 60 * 60 * 1000L
+                prefs.edit().putLong("pass_camera_expiry", newExpiry).apply()
+                _passCameraExpiry.value = newExpiry
+            }
+            "Premium Theme Pass" -> {
+                val currentExpiry = prefs.getLong("pass_theme_expiry", 0L)
+                val base = if (currentExpiry > now) currentExpiry else now
+                val newExpiry = base + 12 * 60 * 60 * 1000L
+                prefs.edit().putLong("pass_theme_expiry", newExpiry).apply()
+                _passThemeExpiry.value = newExpiry
+            }
+            "1-Day Premium", "1-Day Premium Pass" -> {
+                val currentExpiry = prefs.getLong("pass_premium_expiry", 0L)
+                val base = if (currentExpiry > now) currentExpiry else now
+                val newExpiry = base + 24 * 60 * 60 * 1000L
+                prefs.edit().putLong("pass_premium_expiry", newExpiry).apply()
+                _passPremiumExpiry.value = newExpiry
+            }
+        }
+
+        prefs.edit().putInt("vault_coins_balance", newBalance).apply()
+        _vaultCoins.value = newBalance
+        return true
+    }
+
     var showPremiumUpgradeDialog by androidx.compose.runtime.mutableStateOf(false)
 
     fun isPremiumUser(): Boolean {
         val state = _premiumState.value
-        return state == "Premium" || state == "Lifetime"
+        if (state == "Premium" || state == "Lifetime") return true
+        val now = System.currentTimeMillis()
+        if (now < prefs.getLong("pass_premium_expiry", 0L)) return true
+        return false
+    }
+
+    fun isBrowserPremium(): Boolean {
+        if (isPremiumUser()) return true
+        val now = System.currentTimeMillis()
+        if (now < prefs.getLong("pass_browser_expiry", 0L)) return true
+        return false
+    }
+
+    fun isCameraPremium(): Boolean {
+        if (isPremiumUser()) return true
+        val now = System.currentTimeMillis()
+        if (now < prefs.getLong("pass_camera_expiry", 0L)) return true
+        return false
+    }
+
+    fun isThemePremium(theme: AppTheme): Boolean {
+        return when (theme) {
+            AppTheme.OCEAN_BREEZE,
+            AppTheme.SUNSET_ROSE,
+            AppTheme.LAVENDER_MIST,
+            AppTheme.QUANTUM_CYAN -> true
+            else -> false
+        }
+    }
+
+    fun isThemePremiumActive(): Boolean {
+        if (isPremiumUser()) return true
+        val now = System.currentTimeMillis()
+        if (now < prefs.getLong("pass_theme_expiry", 0L)) return true
+        return false
     }
 
     fun incrementVaultDownloadUses() {
-        if (!isPremiumUser()) {
+        if (!isBrowserPremium()) {
             val current = _vaultDownloadUses.value
             prefs.edit().putInt("vault_download_uses", current + 1).apply()
             _vaultDownloadUses.value = current + 1
@@ -1044,7 +1272,7 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun incrementCameraSessions() {
-        if (!isPremiumUser()) {
+        if (!isCameraPremium()) {
             val current = _secureCameraSessions.value
             prefs.edit().putInt("secure_camera_sessions", current + 1).apply()
             _secureCameraSessions.value = current + 1
@@ -1514,9 +1742,18 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
             AppTheme.GRAPHITE
         }
     )
-    val selectedTheme: StateFlow<AppTheme> = _selectedTheme.asStateFlow()
+    val selectedTheme: StateFlow<AppTheme> = combine(_selectedTheme, _premiumState, _passThemeExpiry) { theme, _, _ ->
+        if (isThemePremium(theme) && !isThemePremiumActive()) AppTheme.GRAPHITE else theme
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = if (isThemePremium(_selectedTheme.value) && !isThemePremiumActive()) AppTheme.GRAPHITE else _selectedTheme.value
+    )
 
     fun setSelectedTheme(theme: AppTheme) {
+        if (isThemePremium(theme) && !isThemePremiumActive()) {
+            return
+        }
         prefs.edit().putString("selected_theme", theme.name).apply()
         _selectedTheme.value = theme
     }
@@ -2298,8 +2535,14 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
             return true
         } else {
             if (pin.all { it.isDigit() } && pin.length >= 4) {
-                if (_intruderDetectionEnabled.value) {
-                    logFailedUnlockAttempt(pin)
+                val remaining = getMonitoringRemainingAttempts()
+                if (remaining <= 0) {
+                    _showMonitoringLimitDialog.value = true
+                } else {
+                    incrementMonitoringFailedAttempts()
+                    if (_intruderDetectionEnabled.value) {
+                        logFailedUnlockAttempt(pin)
+                    }
                 }
             }
         }

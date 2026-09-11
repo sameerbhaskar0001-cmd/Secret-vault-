@@ -422,13 +422,72 @@ fun CalculatorScreen(
     viewModel: CalculatorViewModel = viewModel(),
     modifier: Modifier = Modifier
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var activeTab by remember { mutableStateOf(ActiveTab.CALCULATOR) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showLocalRecoveryDialog by remember { mutableStateOf(false) }
     val showRecoveryTrigger by viewModel.showRecoveryTrigger.collectAsStateWithLifecycle()
     val showRecoveryDialog = showLocalRecoveryDialog || showRecoveryTrigger
+    val showMonitoringLimitDialog by viewModel.showMonitoringLimitDialog.collectAsStateWithLifecycle()
+    if (showMonitoringLimitDialog) {
+        val isPremium = viewModel.isPremiumUser()
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { viewModel.setShowMonitoringLimitDialog(false) },
+            title = {
+                Text(
+                    text = if (isPremium) "Monitoring Limit Reached" else "Premium Feature",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = Color.White
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = if (isPremium) "Your premium monitoring attempts are used up (15/15)." else "Your free monitoring attempts are used up.",
+                        fontSize = 14.sp,
+                        color = Color.White
+                    )
+                    Text(
+                        text = if (isPremium) "You have reached the maximum allowed tracking limit." else "Premium gives you 10 additional monitoring attempts.",
+                        fontSize = 13.sp,
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+                }
+            },
+            confirmButton = {
+                if (isPremium) {
+                    TextButton(
+                        onClick = { viewModel.setShowMonitoringLimitDialog(false) }
+                    ) {
+                        Text("OK", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    TextButton(
+                        onClick = {
+                            viewModel.setShowMonitoringLimitDialog(false)
+                            viewModel.showPremiumUpgradeDialog = true
+                        }
+                    ) {
+                        Text("Get Premium", color = Color(0xFFFF9100), fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            dismissButton = {
+                if (!isPremium) {
+                    TextButton(
+                        onClick = { viewModel.setShowMonitoringLimitDialog(false) }
+                    ) {
+                        Text("Not now", color = Color.White.copy(alpha = 0.6f))
+                    }
+                }
+            },
+            containerColor = Color(0xFF151929),
+            titleContentColor = Color.White,
+            textContentColor = Color.White
+        )
+    }
     val haptic = LocalHapticFeedback.current
-    val context = LocalContext.current
     val view = androidx.compose.ui.platform.LocalView.current
     var isImporting by remember { mutableStateOf(false) }
     var importProgress by remember { mutableStateOf(0f) }
@@ -700,18 +759,23 @@ fun CalculatorScreen(
 
                             com.example.ui.theme.AppTheme.values().forEach { theme ->
                                 val isSelected = selectedTheme == theme
+                                val isThemeLocked = viewModel.isThemePremium(theme) && !viewModel.isThemePremiumActive()
                                 androidx.compose.material3.DropdownMenuItem(
                                     text = {
                                         Text(
                                             text = theme.displayName,
-                                            color = if (isSelected) ThemePurple else TextDark,
+                                            color = if (isSelected) ThemePurple else if (isThemeLocked) TextDark.copy(alpha = 0.5f) else TextDark,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                             fontSize = 14.sp
                                         )
                                     },
                                     onClick = {
                                         viewModel.triggerKeypressEffects(context)
-                                        viewModel.setSelectedTheme(theme)
+                                        if (isThemeLocked) {
+                                            android.widget.Toast.makeText(context, "Premium Theme! Unlock with Premium Theme Pass or Upgrade.", android.widget.Toast.LENGTH_LONG).show()
+                                        } else {
+                                            viewModel.setSelectedTheme(theme)
+                                        }
                                         showHeaderMenu = false
                                     },
                                     leadingIcon = {
@@ -724,7 +788,14 @@ fun CalculatorScreen(
                                         )
                                     },
                                     trailingIcon = {
-                                        if (isSelected) {
+                                        if (isThemeLocked) {
+                                            Icon(
+                                                imageVector = androidx.compose.material.icons.Icons.Default.Lock,
+                                                contentDescription = "Premium Locked",
+                                                tint = Color.Gray,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        } else if (isSelected) {
                                             Icon(
                                                 imageVector = Icons.Default.Check,
                                                 contentDescription = "Selected",
@@ -815,6 +886,7 @@ fun CalculatorScreen(
                 ) {
                     items(com.example.ui.theme.AppTheme.values()) { theme ->
                         val isSelected = selectedTheme == theme
+                        val isThemeLocked = viewModel.isThemePremium(theme) && !viewModel.isThemePremiumActive()
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -822,8 +894,12 @@ fun CalculatorScreen(
                                 .background(if (isSelected) ThemePurple.copy(alpha = 0.1f) else Color.Transparent)
                                 .clickable {
                                     viewModel.triggerKeypressEffects(context)
-                                    viewModel.setSelectedTheme(theme)
-                                    showThemeDialog = false
+                                    if (isThemeLocked) {
+                                        android.widget.Toast.makeText(context, "Premium Theme! Unlock with Premium Theme Pass or Upgrade.", android.widget.Toast.LENGTH_LONG).show()
+                                    } else {
+                                        viewModel.setSelectedTheme(theme)
+                                        showThemeDialog = false
+                                    }
                                 }
                                 .padding(horizontal = 14.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -838,12 +914,19 @@ fun CalculatorScreen(
                             )
                             Text(
                                 text = theme.displayName,
-                                color = if (isSelected) ThemePurple else TextDark,
+                                color = if (isSelected) ThemePurple else if (isThemeLocked) TextDark.copy(alpha = 0.5f) else TextDark,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                 fontSize = 16.sp,
                                 modifier = Modifier.weight(1f)
                             )
-                            if (isSelected) {
+                            if (isThemeLocked) {
+                                Icon(
+                                    imageVector = androidx.compose.material.icons.Icons.Default.Lock,
+                                    contentDescription = "Premium Locked",
+                                    tint = Color.Gray,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            } else if (isSelected) {
                                 Icon(
                                     imageVector = Icons.Default.Check,
                                     contentDescription = "Selected",
@@ -1293,6 +1376,10 @@ fun CalculatorTabContent(
                 }
             }
         }
+        
+        // Native Ad for Calculator (shows when eligible)
+        AdMobNativeAd(viewModel = viewModel)
+
         // Keypad Grid Zone
         val buttons = listOf(
             listOf("C", "+/-", "%", "÷"),
@@ -1328,6 +1415,7 @@ fun CalculatorTabContent(
                             onClick = {
                                 viewModel.triggerCalculatorKeypressEffects(context, char)
                                 viewModel.onCalcKeyPress(char)
+                                AdMobManager.incrementMeaningfulAction()
                             },
                             onLongClick = when {
                                 isEquals && biometricEnabled -> {
@@ -1340,6 +1428,7 @@ fun CalculatorTabContent(
                                     {
                                         viewModel.triggerCalculatorKeypressEffects(context, "=") // Heavy click for delete all
                                         viewModel.onCalcKeyPress("C")
+                                        AdMobManager.incrementMeaningfulAction()
                                     }
                                 }
                                 else -> null
@@ -2839,7 +2928,7 @@ fun VaultTabUnlockedContent(
                     }
                 )
             } else {
-                val isEdgeToEdge = activeSection in listOf("Photos", "Videos", "Documents", "Notes", "Music & Audio", "Password_Generator", "Secure_Voice_Note", "Metadata_Cleaner", "About")
+                val isEdgeToEdge = activeSection in listOf("Photos", "Videos", "Documents", "Notes", "Music & Audio", "Password_Generator", "Secure_Voice_Note", "Metadata_Cleaner", "About", "Vault Rewards")
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -2947,7 +3036,7 @@ fun VaultTabUnlockedContent(
                             }
                         }
                     }
-                } else if (activeSection !in listOf("Photos", "Videos", "Documents", "Notes", "Music & Audio", "Password_Generator", "Secure_Voice_Note", "Metadata_Cleaner", "About")) {
+                } else if (activeSection !in listOf("Photos", "Videos", "Documents", "Notes", "Music & Audio", "Password_Generator", "Secure_Voice_Note", "Metadata_Cleaner", "About", "Vault Rewards")) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -3097,6 +3186,49 @@ fun VaultTabUnlockedContent(
                                     )
                                 }
                             }
+                            if (activeSection == "Home") {
+                                val coins by viewModel.vaultCoins.collectAsStateWithLifecycle()
+                                val dailyLastClaimed by viewModel.dailyRewardLastClaimed.collectAsStateWithLifecycle()
+                                val luckyLastOpened by viewModel.luckyChestLastOpened.collectAsStateWithLifecycle()
+                                val dailyClaimable = System.currentTimeMillis() - dailyLastClaimed >= 24 * 60 * 60 * 1000
+                                val luckyOpenable = System.currentTimeMillis() - luckyLastOpened >= 24 * 60 * 60 * 1000
+                                val rewardAvailable = dailyClaimable || luckyOpenable
+                                
+                                Row(
+                                    modifier = Modifier
+                                        .height(40.dp)
+                                        .clip(RoundedCornerShape(20.dp))
+                                        .background(Color(0xFF161B2B).copy(alpha = 0.95f))
+                                        .border(
+                                            width = 1.dp,
+                                            color = if (rewardAvailable) Color(0xFFFFD600) else Color.White.copy(alpha = 0.15f),
+                                            shape = RoundedCornerShape(20.dp)
+                                        )
+                                        .clickable {
+                                            viewModel.triggerKeypressEffects(context)
+                                            activeSection = "Vault Rewards"
+                                        }
+                                        .padding(horizontal = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text("🪙", fontSize = 16.sp)
+                                    Text(
+                                        text = "$coins",
+                                        color = if (rewardAvailable) Color(0xFFFFD600) else Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    if (rewardAvailable) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFFFFD600))
+                                        )
+                                    }
+                                }
+                            }
                             if (activeSection in listOf("Home", "Photos & Videos", "Documents", "Notes", "Music & Audio", "Explore")) {
                                 IconButton(
                                     onClick = {
@@ -3221,6 +3353,10 @@ fun VaultTabUnlockedContent(
                                     }
                                 }
                             }
+                            
+                            // Native Ad for Dashboard (shows when eligible)
+                            AdMobNativeAd(viewModel = viewModel)
+
                             Text(
                                 text = "STORAGE",
                                 fontSize = 10.sp,
@@ -3258,7 +3394,11 @@ fun VaultTabUnlockedContent(
                                     }
                                     Spacer(modifier = Modifier.height(4.dp))
                                     val storageInfo by viewModel.storageInfo.collectAsStateWithLifecycle()
-                                    val maxStorage = 15L * 1024 * 1024 * 1024 // 15 GB
+                                    val isPremium = viewModel.isPremiumUser()
+                                    val maxStorage = if (isPremium) 25L * 1024 * 1024 * 1024 else 15L * 1024 * 1024 * 1024
+                                    if (!isPremium) {
+                                        // Removed promotional text
+                                    }
                                     val progress = if (maxStorage > 0) (storageInfo.totalBytes.toFloat() / maxStorage.toFloat()).coerceIn(0f, 1f) else 0f
                                     LinearProgressIndicator(
                                         progress = { progress },
@@ -3763,6 +3903,12 @@ fun VaultTabUnlockedContent(
                         AppLockSection(viewModel = viewModel)
                     }
                 }
+                "Vault Rewards" -> {
+                    VaultRewardsScreen(
+                        viewModel = viewModel,
+                        onBack = { activeSection = "Home" }
+                    )
+                }
                 "Intruder Alerts", "Access Logs", "Monitoring" -> {
                     Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
                         MonitoringSection(
@@ -4199,6 +4345,18 @@ fun VaultTabUnlockedContent(
                         }
 
                         // 2. Main Settings Sections Group
+                        val vaultCoinsVal by viewModel.vaultCoins.collectAsStateWithLifecycle()
+                        CompactSettingsCard(
+                            title = "Vault Coins & Rewards",
+                            subtitle = "$vaultCoinsVal Coins available · Daily Reward & Lucky Chest",
+                            icon = Icons.Default.Star,
+                            iconColor = Color(0xFFFFD600),
+                            onClick = {
+                                viewModel.triggerKeypressEffects(context)
+                                activeSection = "Vault Rewards"
+                            }
+                        )
+
                         Text(
                             text = "SYSTEM SETTINGS",
                             fontSize = 11.sp,
@@ -11578,6 +11736,7 @@ fun StorageScreenSection(
     onNavigateToRecentlyDeleted: () -> Unit
 ) {
     val storageInfo by viewModel.storageInfo.collectAsStateWithLifecycle()
+    val isPremium = viewModel.isPremiumUser()
     val themePurple = ThemePurple
     val textMedium = TextMedium
     
@@ -11607,11 +11766,13 @@ fun StorageScreenSection(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("Total Vault Storage", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                        Text("${storageInfo.totalUsedFormatted} / 15.0 GB", color = themePurple, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        val maxStorageStr = if (isPremium) "25.0 GB" else "15.0 GB"
+                        Text("${storageInfo.totalUsedFormatted} / $maxStorageStr", color = themePurple, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
+                    // Storage promo removed
                     Spacer(modifier = Modifier.height(10.dp))
                     
-                    val MAX_STORAGE = 15L * 1024 * 1024 * 1024 // 15 GB
+                    val MAX_STORAGE = if (isPremium) 25L * 1024 * 1024 * 1024 else 15L * 1024 * 1024 * 1024
                     val progress = if (MAX_STORAGE > 0) (storageInfo.totalBytes.toFloat() / MAX_STORAGE.toFloat()).coerceIn(0f, 1f) else 0f
                     // Storage Bar
                     LinearProgressIndicator(
@@ -11627,7 +11788,8 @@ fun StorageScreenSection(
                     Spacer(modifier = Modifier.height(10.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("${storageInfo.totalUsedFormatted} Used", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                        Text("15.0 GB Total", color = textMedium, fontSize = 12.sp)
+                        val totalStr = if (isPremium) "25.0 GB Total" else "15.0 GB Total"
+                        Text(totalStr, color = textMedium, fontSize = 12.sp)
                     }
                 }
             }
@@ -12075,6 +12237,80 @@ fun MonitoringSection(
                             fontSize = 11.sp,
                             color = Color.White.copy(alpha = 0.6f)
                         )
+                    }
+                }
+                
+                val isPremium = viewModel.isPremiumUser()
+                val remainingAttempts = viewModel.getMonitoringRemainingAttempts()
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                androidx.compose.material3.HorizontalDivider(color = Color(0xFF232B44))
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                if (remainingAttempts > 0) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "$remainingAttempts monitoring attempts remaining",
+                            fontSize = 13.sp,
+                            color = if (isPremium) Color(0xFF00E5FF) else Color(0xFFFF9100),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        if (isPremium) {
+                            Text(
+                                text = "PREMIUM",
+                                fontSize = 10.sp,
+                                color = Color(0xFF00E5FF),
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .background(Color(0xFF00E5FF).copy(alpha = 0.12f), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                } else {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = if (isPremium) "Your premium monitoring attempts are used up." else "Your free monitoring attempts are used up.",
+                            fontSize = 13.sp,
+                            color = Color(0xFFEF5350),
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (isPremium) "Maximum limit of 15 attempts reached." else "Premium gives you 10 additional monitoring attempts.",
+                            fontSize = 11.5.sp,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                        
+                        if (!isPremium) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Button(
+                                    onClick = { viewModel.showPremiumUpgradeDialog = true },
+                                    modifier = Modifier.weight(1f).height(36.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9100))
+                                ) {
+                                    Text("Get Premium", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                }
+                                OutlinedButton(
+                                    onClick = { /* Do nothing / dismissed */ },
+                                    modifier = Modifier.weight(1f).height(36.dp),
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(1.dp, Color(0xFF232B44)),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                                ) {
+                                    Text("Not now", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
                     }
                 }
             }

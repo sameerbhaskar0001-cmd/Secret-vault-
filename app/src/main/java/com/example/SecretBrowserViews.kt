@@ -4079,12 +4079,31 @@ fun PrivateBrowserSection(
         goBackOrExit()
     }
 
+    var hasConfirmed by remember { mutableStateOf(false) }
+    LaunchedEffect(pendingDownload) {
+        if (pendingDownload != null) {
+            hasConfirmed = false
+        }
+    }
+
     pendingDownload?.let { download ->
         SecretBrowserDownloadConfirmDialog(
             download = download,
             viewModel = viewModel,
-            onDismiss = { pendingDownload = null },
+            onDismiss = {
+                if (!hasConfirmed) {
+                    activeTab?.id?.let { tabId ->
+                        try {
+                            geckoSessions[tabId]?.stop()
+                        } catch (e: Exception) {
+                            android.util.Log.e("DownloadDismiss", "Failed to stop session", e)
+                        }
+                    }
+                }
+                pendingDownload = null
+            },
             onConfirm = { destination ->
+                hasConfirmed = true
                 viewModel.startVaultDownload(
                     context = context,
                     url = download.url,
@@ -5115,6 +5134,11 @@ fun PrivateBrowserSection(
                         }
                     }
                 }
+            }
+
+            // Banner ad at the bottom of the private browser (shows when eligible)
+            if (activeTab?.isFullScreen != true) {
+                AdMobBannerAd(viewModel = viewModel)
             }
         }
 
