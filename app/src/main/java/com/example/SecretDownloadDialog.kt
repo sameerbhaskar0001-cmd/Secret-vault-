@@ -216,7 +216,7 @@ fun SecretBrowserDownloadConfirmDialog(
                     ) {
                         Button(
                             onClick = {
-                                viewModel.showPremiumUpgradeDialog = true
+                                android.widget.Toast.makeText(context, "Premium is coming soon!", android.widget.Toast.LENGTH_SHORT).show()
                                 onDismiss()
                             },
                             modifier = Modifier
@@ -228,7 +228,7 @@ fun SecretBrowserDownloadConfirmDialog(
                             )
                         ) {
                             Text(
-                                text = "Get Premium",
+                                text = "Premium Coming Soon",
                                 color = Color.White,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold

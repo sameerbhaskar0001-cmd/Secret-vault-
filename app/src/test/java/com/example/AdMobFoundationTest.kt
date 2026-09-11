@@ -70,16 +70,16 @@ class AdMobFoundationTest {
         assertFalse(viewModel.isPremiumUser())
 
         // Ad is eligible initially as lastAdShownTimeMillis is 0 (cooldown passed) 
-        // but meaningful actions are 0, so ineligible until 6 actions are completed
+        // but meaningful actions are 0, so ineligible until 4 actions are completed
         assertFalse(AdMobManager.isAdEligible(viewModel))
 
-        // Perform 5 actions
-        for (i in 1..5) {
+        // Perform 3 actions
+        for (i in 1..3) {
             AdMobManager.incrementMeaningfulAction()
         }
         assertFalse(AdMobManager.isAdEligible(viewModel))
 
-        // Perform 6th action
+        // Perform 4th action
         AdMobManager.incrementMeaningfulAction()
         assertTrue(AdMobManager.isAdEligible(viewModel))
 
@@ -87,8 +87,8 @@ class AdMobFoundationTest {
         AdMobManager.recordAdShown()
         assertFalse(AdMobManager.isAdEligible(viewModel))
 
-        // Even with 6 more actions, eligibility should remain false because of the 5-minute cooldown
-        for (i in 1..6) {
+        // Even with 4 more actions, eligibility should remain false because of the 4-minute cooldown
+        for (i in 1..4) {
             AdMobManager.incrementMeaningfulAction()
         }
         assertFalse(AdMobManager.isAdEligible(viewModel))

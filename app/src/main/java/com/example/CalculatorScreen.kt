@@ -466,10 +466,10 @@ fun CalculatorScreen(
                     TextButton(
                         onClick = {
                             viewModel.setShowMonitoringLimitDialog(false)
-                            viewModel.showPremiumUpgradeDialog = true
+                            android.widget.Toast.makeText(context, "Premium is coming soon!", android.widget.Toast.LENGTH_SHORT).show()
                         }
                     ) {
-                        Text("Get Premium", color = Color(0xFFFF9100), fontWeight = FontWeight.Bold)
+                        Text("Premium Coming Soon", color = Color(0xFFFF9100), fontWeight = FontWeight.Bold)
                     }
                 }
             },
@@ -7077,7 +7077,7 @@ fun VaultTabUnlockedContent(
                             val ctaText = when (premiumState) {
                                 "Premium" -> "Manage Plan"
                                 "Lifetime" -> "Lifetime Activated"
-                                else -> "Upgrade Vault"
+                                else -> "Premium Coming Soon"
                             }
                             Box(
                                 modifier = Modifier
@@ -7095,8 +7095,10 @@ fun VaultTabUnlockedContent(
                                     .clickable {
                                         if (premiumState == "Lifetime") {
                                             android.widget.Toast.makeText(context, "Lifetime Vault status is fully activated!", android.widget.Toast.LENGTH_SHORT).show()
-                                        } else {
+                                        } else if (premiumState == "Premium") {
                                             showPremiumDialog = true
+                                        } else {
+                                            android.widget.Toast.makeText(context, "Premium is coming soon!", android.widget.Toast.LENGTH_SHORT).show()
                                         }
                                     },
                                 contentAlignment = Alignment.Center
@@ -12293,12 +12295,14 @@ fun MonitoringSection(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Button(
-                                    onClick = { viewModel.showPremiumUpgradeDialog = true },
+                                    onClick = { 
+                                        android.widget.Toast.makeText(context, "Premium is coming soon!", android.widget.Toast.LENGTH_SHORT).show()
+                                    },
                                     modifier = Modifier.weight(1f).height(36.dp),
                                     shape = RoundedCornerShape(8.dp),
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9100))
                                 ) {
-                                    Text("Get Premium", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Text("Premium Coming Soon", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                 }
                                 OutlinedButton(
                                     onClick = { /* Do nothing / dismissed */ },

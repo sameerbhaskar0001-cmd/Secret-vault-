@@ -751,7 +751,7 @@ fun SecureCameraView(
 
                     Button(
                         onClick = {
-                            viewModel.showPremiumUpgradeDialog = true
+                            android.widget.Toast.makeText(context, "Premium is coming soon!", android.widget.Toast.LENGTH_SHORT).show()
                             onDismiss()
                         },
                         modifier = Modifier
@@ -763,7 +763,7 @@ fun SecureCameraView(
                         )
                     ) {
                         Text(
-                            text = "Get Premium",
+                            text = "Premium Coming Soon",
                             color = Color.White,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold

@@ -792,7 +792,8 @@ fun SecretBrowserHome(
     onShowDownloads: () -> Unit,
     onShowSettings: () -> Unit,
     onShowSearchEngineDialog: () -> Unit,
-    onClearAllData: () -> Unit
+    onClearAllData: () -> Unit,
+    onPlaySecretRunner: () -> Unit
 ) {
     val context = LocalContext.current
     var searchInput by remember { mutableStateOf("") }
@@ -1138,6 +1139,123 @@ fun SecretBrowserHome(
                     Column {
                         Text("Bookmarks", color = TextPrimary, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
                         Text("Saved pages", color = TextSecondary, fontSize = 10.5.sp)
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // 5. SECRET RUNNER ARCADE GAME LAUNCHER (PREMIUM MINI-DASHBOARD DESIGN)
+        Text(
+            text = "SECRET ARCADE",
+            color = TextSecondary.copy(alpha = 0.85f),
+            fontSize = 10.5.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.1.sp
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(120.dp)
+                .premiumPressClick { onPlaySecretRunner() },
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = LightCard),
+            border = BorderStroke(1.dp, AccentColor.copy(alpha = 0.35f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                // Background subtle glassmorphic abstract shapes or gradient
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            androidx.compose.ui.graphics.Brush.radialGradient(
+                                colors = listOf(
+                                    AccentColor.copy(alpha = 0.08f),
+                                    Color.Transparent
+                                ),
+                                radius = 250f
+                            )
+                        )
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Left: Gaming/Security Controller Icon with glowing accent circles
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(AccentColor.copy(alpha = 0.08f), CircleShape)
+                            .border(1.5.dp, AccentColor.copy(alpha = 0.25f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Security,
+                            contentDescription = "Arcade Game",
+                            tint = AccentColor,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    // Middle: Titles & Play description
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "Secret Runner",
+                            color = TextPrimary,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = (-0.3).sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Dodge retro obstacles & set a high score in our offline parkour mini-game!",
+                            color = TextSecondary,
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    // Right: Action Capsule Button
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(AccentColor)
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "PLAY",
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(10.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -5078,7 +5196,8 @@ fun PrivateBrowserSection(
                         onShowDownloads = { showDownloads = true },
                         onShowSettings = { showSettings = true },
                         onShowSearchEngineDialog = { showSearchEngineDialog = true },
-                        onClearAllData = { showMenuClearBrowsingDataDialog = true }
+                        onClearAllData = { showMenuClearBrowsingDataDialog = true },
+                        onPlaySecretRunner = { showSecretRunnerGame = true }
                     )
                 }
 
@@ -5089,33 +5208,35 @@ fun PrivateBrowserSection(
                 ) {
                     if (activeGeckoSession != null && currentActiveId != null) {
                         Box(modifier = Modifier.fillMaxSize()) {
-                            AndroidView(
-                                factory = { ctx ->
-                                    val gv = org.mozilla.geckoview.GeckoView(ctx)
-                                    geckoViews[currentActiveId] = gv
-                                    try {
-                                        activeGeckoSession.setActive(true)
-                                        gv.setSession(activeGeckoSession)
-                                    } catch (e: Exception) {
-                                        android.util.Log.e("GeckoViewAttach", "Failed in factory", e)
-                                    }
-                                    gv
-                                },
-                                update = { geckoView ->
-                                    geckoViews[currentActiveId] = geckoView
-                                    try {
-                                        activeGeckoSession.setActive(true)
-                                        if (geckoView.session != activeGeckoSession) {
-                                            geckoView.releaseSession()
-                                            geckoView.setSession(activeGeckoSession)
+                            key(currentActiveId) {
+                                AndroidView(
+                                    factory = { ctx ->
+                                        val gv = org.mozilla.geckoview.GeckoView(ctx)
+                                        geckoViews[currentActiveId] = gv
+                                        try {
+                                            activeGeckoSession.setActive(true)
+                                            gv.setSession(activeGeckoSession)
+                                        } catch (e: Exception) {
+                                            android.util.Log.e("GeckoViewAttach", "Failed in factory", e)
                                         }
-                                    } catch (e: Exception) {
-                                        android.util.Log.e("GeckoViewAttach", "Failed in update", e)
-                                    }
-                                    geckoView.isSaveEnabled = false
-                                },
-                                modifier = Modifier.fillMaxSize()
-                            )
+                                        gv
+                                    },
+                                    update = { geckoView ->
+                                        geckoViews[currentActiveId] = geckoView
+                                        try {
+                                            activeGeckoSession.setActive(true)
+                                            if (geckoView.session != activeGeckoSession) {
+                                                geckoView.releaseSession()
+                                                geckoView.setSession(activeGeckoSession)
+                                            }
+                                        } catch (e: Exception) {
+                                            android.util.Log.e("GeckoViewAttach", "Failed in update", e)
+                                        }
+                                        geckoView.isSaveEnabled = false
+                                    },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
                             
                             androidx.compose.animation.AnimatedVisibility(
                                 visible = activeTab?.isLoading == true,

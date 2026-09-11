@@ -35,8 +35,8 @@ object AdMobManager {
         
         val now = System.currentTimeMillis()
         val timeSinceLastAd = now - lastAdShownTimeMillis
-        val isCooldownPassed = timeSinceLastAd >= 5 * 60 * 1000 // 5 minutes
-        val isActionsPassed = meaningfulActionsCompleted >= 6
+        val isCooldownPassed = timeSinceLastAd >= 4 * 60 * 1000 // 4 minutes
+        val isActionsPassed = meaningfulActionsCompleted >= 4
         
         Log.d(TAG, "isAdEligible check - CooldownPassed: $isCooldownPassed (${timeSinceLastAd / 1000}s elapsed), ActionsPassed: $isActionsPassed ($meaningfulActionsCompleted completed)")
         
@@ -46,7 +46,7 @@ object AdMobManager {
     fun recordAdShown() {
         lastAdShownTimeMillis = System.currentTimeMillis()
         meaningfulActionsCompleted = 0
-        Log.d(TAG, "Ad shown recorded. 5-minute cooldown started. Actions reset to 0.")
+        Log.d(TAG, "Ad shown recorded. 4-minute cooldown started. Actions reset to 0.")
     }
 
     fun initialize(context: Context) {
