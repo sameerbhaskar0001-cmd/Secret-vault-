@@ -25,10 +25,10 @@ class AdMobFoundationTest {
 
     @Test
     fun testTestAdUnitIds() {
-        // Verify that the official Google AdMob test ad configurations are defined correctly
-        assertEquals("ca-app-pub-3940256099942544/6300978111", AdMobManager.TEST_BANNER_ID)
-        assertEquals("ca-app-pub-3940256099942544/1033173712", AdMobManager.TEST_INTERSTITIAL_ID)
-        assertEquals("ca-app-pub-3940256099942544/5224354917", AdMobManager.TEST_REWARDED_ID)
+        // Verify that the live Google AdMob ad configurations are defined correctly
+        assertEquals("ca-app-pub-2350384117707353/5707205902", AdMobManager.TEST_BANNER_ID)
+        assertEquals("ca-app-pub-2350384117707353/5465953740", AdMobManager.TEST_INTERSTITIAL_ID)
+        assertEquals("ca-app-pub-2350384117707353/5675416312", AdMobManager.TEST_REWARDED_ID)
     }
 
     @Test

@@ -898,37 +898,6 @@ fun SecureCameraView(
                     Icon(Icons.Default.Close, contentDescription = "Exit Camera", tint = Color.White)
                 }
 
-                // If not premium, show remaining sessions pill
-                if (!isPremium) {
-                    androidx.compose.material3.Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFFFF6A00).copy(alpha = 0.25f),
-                        border = BorderStroke(0.8.dp, Color(0xFFFF6A00).copy(alpha = 0.5f))
-                    ) {
-                        Text(
-                            text = "$remainingSessions free camera sessions remaining",
-                            color = Color(0xFFFF6A00),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                } else {
-                    androidx.compose.material3.Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF10B981).copy(alpha = 0.25f),
-                        border = BorderStroke(0.8.dp, Color(0xFF10B981).copy(alpha = 0.5f))
-                    ) {
-                        Text(
-                            text = "✨ Premium Unlimited Camera active",
-                            color = Color(0xFF10B981),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-
                 // Top Quick settings buttons (Grid, Self-Timer, Flash Mode)
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -1013,6 +982,46 @@ fun SecureCameraView(
                             },
                             contentDescription = "Flash Mode",
                             tint = if (flashMode == "OFF") Color.LightGray else Color.Yellow
+                        )
+                    }
+                }
+            }
+        }
+
+        // Centered Floating Sessions remaining indicator HUD - placed safely below the top bar buttons!
+        if (!showTimerSelector) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 80.dp) // Safely floats below the top controls
+            ) {
+                if (!isPremium) {
+                    androidx.compose.material3.Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFFFF6A00).copy(alpha = 0.2f),
+                        border = BorderStroke(0.8.dp, Color(0xFFFF6A00).copy(alpha = 0.45f))
+                    ) {
+                        Text(
+                            text = "$remainingSessions free camera sessions remaining",
+                            color = Color(0xFFFF6A00),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                        )
+                    }
+                } else {
+                    androidx.compose.material3.Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF10B981).copy(alpha = 0.2f),
+                        border = BorderStroke(0.8.dp, Color(0xFF10B981).copy(alpha = 0.45f))
+                    ) {
+                        Text(
+                            text = "✨ Premium Unlimited Camera active",
+                            color = Color(0xFF10B981),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                         )
                     }
                 }

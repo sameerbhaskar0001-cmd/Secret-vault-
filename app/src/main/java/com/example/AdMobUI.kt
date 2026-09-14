@@ -70,9 +70,6 @@ fun AdMobBannerAd(viewModel: CalculatorViewModel, modifier: Modifier = Modifier)
                         }
                         loadAd(AdRequest.Builder().build())
                     }
-                },
-                onRelease = { adView ->
-                    adView.destroy()
                 }
             )
         }
@@ -87,12 +84,6 @@ fun AdMobNativeAd(viewModel: CalculatorViewModel, modifier: Modifier = Modifier)
     var isEligible by remember { mutableStateOf(AdMobManager.isAdEligible(viewModel)) }
     var loadedNativeAd by remember { mutableStateOf<NativeAd?>(null) }
     val themeColors = LocalAppThemeColors.current
-
-    DisposableEffect(loadedNativeAd) {
-        onDispose {
-            loadedNativeAd?.destroy()
-        }
-    }
 
     LaunchedEffect(Unit) {
         while (true) {

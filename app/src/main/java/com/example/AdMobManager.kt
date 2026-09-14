@@ -15,11 +15,11 @@ import com.google.android.gms.ads.LoadAdError
 object AdMobManager {
     private const val TAG = "AdMobManager"
 
-    // Test Ad Unit IDs provided officially by Google AdMob
-    const val TEST_BANNER_ID = "ca-app-pub-3940256099942544/6300978111"
-    const val TEST_INTERSTITIAL_ID = "ca-app-pub-3940256099942544/1033173712"
-    const val TEST_REWARDED_ID = "ca-app-pub-3940256099942544/5224354917"
-    const val TEST_NATIVE_ID = "ca-app-pub-3940256099942544/2247696110"
+    // Live AdMob Ad Unit IDs connected successfully
+    const val TEST_BANNER_ID = "ca-app-pub-2350384117707353/5707205902"
+    const val TEST_INTERSTITIAL_ID = "ca-app-pub-2350384117707353/5465953740"
+    const val TEST_REWARDED_ID = "ca-app-pub-2350384117707353/5675416312"
+    const val TEST_NATIVE_ID = "ca-app-pub-2350384117707353/1855590801"
 
     private var isInitialized = false
     private var lastAdShownTimeMillis: Long = 0L

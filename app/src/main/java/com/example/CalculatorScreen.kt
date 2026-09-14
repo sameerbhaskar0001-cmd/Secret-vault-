@@ -6719,6 +6719,7 @@ fun VaultTabUnlockedContent(
                     var showBuiltInGrid by remember { mutableStateOf(false) }
                     var showNameDialog by remember { mutableStateOf(false) }
                     var showPremiumDialog by remember { mutableStateOf(false) }
+                    var devTapCount by remember { mutableStateOf(0) }
                     
                     val displayName = if (ownerName == "Vault Owner" || ownerName.isEmpty()) "Sameer" else ownerName
                     var nameInput by remember { mutableStateOf(displayName) }
@@ -6871,7 +6872,15 @@ fun VaultTabUnlockedContent(
                                     text = "Vault Owner",
                                     fontSize = 15.sp,
                                     color = Color.White.copy(alpha = 0.6f),
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.clickable {
+                                        devTapCount++
+                                        if (devTapCount >= 5) {
+                                            devTapCount = 0
+                                            showPremiumDialog = true
+                                            android.widget.Toast.makeText(context, "Developer Mode Enabled: Premium Config Opened", android.widget.Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
                                 )
                                 
                                 // Premium Badge supporting Free / Premium / Lifetime states in Glassmorphism style
@@ -6900,7 +6909,15 @@ fun VaultTabUnlockedContent(
                                         .clip(CircleShape) // Rounded capsule design
                                         .background(badgeBgColor)
                                         .border(1.dp, badgeBorderColor, CircleShape)
-                                        .clickable { showPremiumDialog = true }
+                                        .clickable {
+                                            if (premiumState == "Lifetime") {
+                                                android.widget.Toast.makeText(context, "Lifetime status is active!", android.widget.Toast.LENGTH_SHORT).show()
+                                            } else if (premiumState == "Premium") {
+                                                android.widget.Toast.makeText(context, "Premium status is active!", android.widget.Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                android.widget.Toast.makeText(context, "Premium is coming soon!", android.widget.Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
                                         .padding(horizontal = 12.dp, vertical = 6.dp), // Premium spacing
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -7096,7 +7113,7 @@ fun VaultTabUnlockedContent(
                                         if (premiumState == "Lifetime") {
                                             android.widget.Toast.makeText(context, "Lifetime Vault status is fully activated!", android.widget.Toast.LENGTH_SHORT).show()
                                         } else if (premiumState == "Premium") {
-                                            showPremiumDialog = true
+                                            android.widget.Toast.makeText(context, "Premium status is active!", android.widget.Toast.LENGTH_SHORT).show()
                                         } else {
                                             android.widget.Toast.makeText(context, "Premium is coming soon!", android.widget.Toast.LENGTH_SHORT).show()
                                         }
