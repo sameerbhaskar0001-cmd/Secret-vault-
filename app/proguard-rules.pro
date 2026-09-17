@@ -24,4 +24,8 @@
 # GeckoView internal SnakeYAML references desktop java.beans
 -dontwarn java.beans.**
 
-
+# GeckoView essential rules to prevent ClassNotFoundException / NoSuchMethodError in Release/Minified builds
+-keep class org.mozilla.geckoview.** { *; }
+-keep class org.mozilla.gecko.** { *; }
+-dontwarn org.mozilla.geckoview.**
+-dontwarn org.mozilla.gecko.**
