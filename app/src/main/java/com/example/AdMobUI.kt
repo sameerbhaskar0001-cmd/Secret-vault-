@@ -30,6 +30,7 @@ fun AdMobBannerAd(viewModel: CalculatorViewModel, modifier: Modifier = Modifier)
 
     val context = LocalContext.current
     var isEligible by remember { mutableStateOf(AdMobManager.isAdEligible(viewModel)) }
+    var adLoaded by remember { mutableStateOf(false) }
     val themeColors = LocalAppThemeColors.current
 
     LaunchedEffect(Unit) {
@@ -43,9 +44,9 @@ fun AdMobBannerAd(viewModel: CalculatorViewModel, modifier: Modifier = Modifier)
         Box(
             modifier = modifier
                 .fillMaxWidth()
-                .wrapContentHeight()
-                .background(themeColors.brandBg)
-                .padding(vertical = 4.dp),
+                .height(if (adLoaded) 58.dp else 0.dp)
+                .background(if (adLoaded) themeColors.brandBg else Color.Transparent)
+                .padding(vertical = if (adLoaded) 4.dp else 0.dp),
             contentAlignment = Alignment.Center
         ) {
             AndroidView(
@@ -61,11 +62,12 @@ fun AdMobBannerAd(viewModel: CalculatorViewModel, modifier: Modifier = Modifier)
                                 super.onAdLoaded()
                                 Log.d("AdMobBannerAd", "Banner ad loaded successfully")
                                 AdMobManager.recordAdShown()
-                                isEligible = false
+                                adLoaded = true
                             }
                             override fun onAdFailedToLoad(error: LoadAdError) {
                                 super.onAdFailedToLoad(error)
                                 Log.e("AdMobBannerAd", "Banner ad failed to load: ${error.message}")
+                                adLoaded = false
                             }
                         }
                         loadAd(AdRequest.Builder().build())

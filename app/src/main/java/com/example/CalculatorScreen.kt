@@ -423,6 +423,10 @@ fun CalculatorScreen(
     modifier: Modifier = Modifier
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { context.getSharedPreferences("exchange_calc_prefs", android.content.Context.MODE_PRIVATE) }
+    var showOnboarding by remember { mutableStateOf(!prefs.getBoolean("has_completed_onboarding_v3", false)) }
+    var showUninstallWarningDialog by remember { mutableStateOf(false) }
+    val uninstallWarningShown = remember { prefs.getBoolean("uninstall_warning_shown_v3", false) }
     var activeTab by remember { mutableStateOf(ActiveTab.CALCULATOR) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showLocalRecoveryDialog by remember { mutableStateOf(false) }
@@ -498,6 +502,13 @@ fun CalculatorScreen(
     val vaultUnlocked by viewModel.vaultUnlocked.collectAsStateWithLifecycle()
     val vaultFiles by viewModel.vaultFiles.collectAsStateWithLifecycle()
     val vaultNotes by viewModel.vaultNotes.collectAsStateWithLifecycle()
+    
+    LaunchedEffect(vaultFiles, vaultNotes) {
+        if (!uninstallWarningShown && (vaultFiles.isNotEmpty() || vaultNotes.isNotEmpty())) {
+            showUninstallWarningDialog = true
+        }
+    }
+
     // Switch to the private vault screen automatically when unlocked via passcode
     var transitionState by remember { mutableStateOf(0) } // 0=Calc, 1=Authenticating, 2=Transition, 3=Vault
     
@@ -860,6 +871,55 @@ fun CalculatorScreen(
             }
         }
     }
+
+    if (showOnboarding) {
+        OnboardingCarouselDialog(
+            onDismiss = {
+                prefs.edit().putBoolean("has_completed_onboarding_v3", true).apply()
+                showOnboarding = false
+            }
+        )
+    }
+
+    if (showUninstallWarningDialog) {
+        AlertDialog(
+            onDismissRequest = { /* Force acknowledge to close */ },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = "Uninstall Warning",
+                        tint = Color(0xFFFF3D00)
+                    )
+                    Text("CRITICAL: Do Not Uninstall!", color = TextDark, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                }
+            },
+            text = {
+                Text(
+                    text = "Please note that all files in this private vault are encrypted and stored in your device's secure private directory.\n\n" +
+                           "⚠️ DO NOT UNINSTALL THIS APP unless you have exported and backed up your hidden photos, videos, and files first. " +
+                           "Uninstalling the application will result in the permanent deletion of all your secure files.",
+                    color = TextMedium,
+                    fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        prefs.edit().putBoolean("uninstall_warning_shown_v3", true).apply()
+                        showUninstallWarningDialog = false
+                    }
+                ) {
+                    Text("I Understand", color = ThemePurple, fontWeight = FontWeight.Bold)
+                }
+            },
+            containerColor = BrandBg
+        )
+    }
+
     // Dynamic Theme Selection Dialog
     if (showThemeDialog) {
         val selectedTheme by viewModel.selectedTheme.collectAsStateWithLifecycle()
@@ -13364,6 +13424,187 @@ fun SecretVaultUnlockingAnimation(
                     scaleY = textScale
                 }
             )
+        }
+    }
+}
+
+@Composable
+fun OnboardingCarouselDialog(
+    onDismiss: () -> Unit
+) {
+    var currentPage by remember { mutableStateOf(0) }
+    val totalPages = 4
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = {}, // Force standard complete walkthrough
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        androidx.compose.material3.Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp)
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(28.dp)),
+            color = Color(0xFF0F1322),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2979FF).copy(alpha = 0.2f))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+            ) {
+                // Header (Skip Button)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End
+                ) {
+                    if (currentPage < totalPages - 1) {
+                        Text(
+                            text = "Skip",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier
+                                .clickable { onDismiss() }
+                                .padding(8.dp)
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.height(32.dp))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Beautiful Vector Icon / Graphic
+                Box(
+                    modifier = Modifier
+                        .size(90.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(
+                            when (currentPage) {
+                                3 -> Color(0xFFFF9100).copy(alpha = 0.15f)
+                                else -> Color(0xFF2979FF).copy(alpha = 0.15f)
+                            }
+                        ),
+                    contentAlignment = androidx.compose.ui.Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = when (currentPage) {
+                            0 -> androidx.compose.material.icons.Icons.Default.Lock
+                            1 -> androidx.compose.material.icons.Icons.Default.Image
+                            2 -> androidx.compose.material.icons.Icons.Default.Language
+                            else -> androidx.compose.material.icons.Icons.Default.Settings
+                        },
+                        contentDescription = null,
+                        tint = when (currentPage) {
+                            3 -> Color(0xFFFF9100)
+                            else -> Color(0xFF2979FF)
+                        },
+                        modifier = Modifier.size(44.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Title
+                Text(
+                    text = when (currentPage) {
+                        0 -> "Stealth Passcode"
+                        1 -> "Secure Media Locker"
+                        2 -> "Stealth Web Browser"
+                        else -> "🔑 Important: Settings Section"
+                    },
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Description Paragraph
+                Text(
+                    text = when (currentPage) {
+                        0 -> "Welcome to your ultra-secure hideaway. This app functions exactly like a real calculator.\n\nType the default passcode \"7777\" followed by the \"=\" button on the keypad to unlock your hidden private vault."
+                        1 -> "Safeguard your most personal files, photos, videos, and private notes.\n\nAll data is fully encrypted in a local sandbox directory and is completely hidden from external gallery apps."
+                        2 -> "Browse any website with absolute secrecy.\n\nFeatures include private stealth search, independent download manager, and instant session wipe to leave zero trace on your device."
+                        else -> "DO NOT MISS THESE IMPORTANT HIGHLIGHTS!\n\n• Decoy Passcode: Set a fake secondary PIN to fool nosey friends.\n• Security Question: Vital for recovery if you forget your main PIN.\n• Cloud Sync & Local Backups: Keep your files secure and protected."
+                    },
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp)
+                        .height(140.dp) // Fixed height to prevent dialog jumping on slide transition
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Page Indicator Dots
+                Row(
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+                ) {
+                    repeat(totalPages) { page ->
+                        Box(
+                            modifier = Modifier
+                                .width(if (page == currentPage) 20.dp else 8.dp)
+                                .height(8.dp)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(
+                                    if (page == currentPage) {
+                                        if (currentPage == 3) Color(0xFFFF9100) else Color(0xFF2979FF)
+                                    } else Color.White.copy(alpha = 0.2f)
+                                )
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(28.dp))
+
+                // Action Buttons Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    // Back Button
+                    if (currentPage > 0) {
+                        TextButton(
+                            onClick = { currentPage-- }
+                        ) {
+                            Text("Back", color = Color.White.copy(alpha = 0.6f), fontWeight = FontWeight.SemiBold)
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.width(60.dp))
+                    }
+
+                    // Next/Complete Button
+                    Button(
+                        onClick = {
+                            if (currentPage < totalPages - 1) {
+                                currentPage++
+                            } else {
+                                onDismiss()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (currentPage == 3) Color(0xFFFF9100) else Color(0xFF2979FF)
+                        ),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    ) {
+                        Text(
+                            text = if (currentPage == totalPages - 1) "Get Started!" else "Next",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                    }
+                }
+            }
         }
     }
 }
