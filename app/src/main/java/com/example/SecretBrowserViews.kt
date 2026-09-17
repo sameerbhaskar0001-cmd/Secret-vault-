@@ -4123,13 +4123,14 @@ fun PrivateBrowserSection(
                         stopLoading()
                         onExit()
                     }
+                } else if (session != null && tab.canGoBack == true) {
+                    // Always prioritize standard native session goBack if available to avoid infinite navigation loops
+                    session.goBack()
                 } else if (shouldBypassGoBackWithCheckpoint) {
                     val prevUrl = SecretBrowserNavigationCheckpointManager.popValidCheckpoint(tab.id, currentUrl)
                     if (prevUrl != null) {
                         loadUrl(prevUrl)
                     }
-                } else if (session != null && tab.canGoBack == true) {
-                    session.goBack()
                 } else if (SecretBrowserNavigationCheckpointManager.hasValidCheckpoint(tab.id, currentUrl)) {
                     val prevUrl = SecretBrowserNavigationCheckpointManager.popValidCheckpoint(tab.id, currentUrl)
                     if (prevUrl != null) {

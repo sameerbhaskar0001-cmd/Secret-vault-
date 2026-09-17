@@ -68,7 +68,7 @@ object GeckoDownloadEngine {
 
             val statusCode = response.statusCode
             if (statusCode !in 200..299) {
-                GeckoDownloadResult.ServerError(statusCode, "HTTP Error: $statusCode")
+                throw java.io.IOException("HTTP Error $statusCode from GeckoWebExecutor")
             } else {
                 val headers = response.headers
                 val contentType = headers["Content-Type"] ?: headers["content-type"] ?: ""
@@ -77,7 +77,7 @@ object GeckoDownloadEngine {
                 } else {
                     val body = response.body
                     if (body == null) {
-                        GeckoDownloadResult.Error("Null response body")
+                        throw java.io.IOException("Null response body from GeckoWebExecutor")
                     } else {
                         inputStream = body
                         outputStream = FileOutputStream(targetFile, append)
@@ -121,10 +121,90 @@ object GeckoDownloadEngine {
                 }
             }
         } catch (e: Exception) {
+            android.util.Log.w("GeckoDownloadEngine", "Primary GeckoWebExecutor failed: ${e.message}. Falling back to HttpURLConnection.", e)
+            downloadWithHttpURLConnection(url, targetFile, referrerUrl, append, onProgress)
+        } finally {
+            try { inputStream?.close() } catch (e: Exception) {}
+            try { outputStream?.close() } catch (e: Exception) {}
+        }
+    }
+
+    private suspend fun downloadWithHttpURLConnection(
+        url: String,
+        targetFile: File,
+        referrerUrl: String,
+        append: Boolean,
+        onProgress: (current: Long, total: Long, speedStr: String) -> Unit
+    ): GeckoDownloadResult = withContext(Dispatchers.IO) {
+        var connection: java.net.HttpURLConnection? = null
+        var inputStream: InputStream? = null
+        var outputStream: FileOutputStream? = null
+        try {
+            val connectionUrl = java.net.URL(url)
+            connection = connectionUrl.openConnection() as java.net.HttpURLConnection
+            connection.connectTimeout = 15000
+            connection.readTimeout = 15000
+            connection.instanceFollowRedirects = true
+            
+            // Set standard browser-like headers to avoid getting blocked or encountering HTTPS handshake blocks
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Mobile Safari/537.36")
+            connection.setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,video/*,audio/*,*/*;q=0.8")
+            if (referrerUrl.isNotBlank()) {
+                connection.setRequestProperty("Referer", referrerUrl)
+            }
+            
+            val responseCode = connection.responseCode
+            if (responseCode !in 200..299) {
+                return@withContext GeckoDownloadResult.ServerError(responseCode, "HTTP Error: $responseCode")
+            }
+            
+            val contentType = connection.contentType ?: ""
+            if (contentType.contains("text/html") || contentType.contains("application/xhtml")) {
+                return@withContext GeckoDownloadResult.HtmlChallengeResponse("Verification/Ad page detected instead of media file")
+            }
+            
+            val contentLength = connection.contentLength.toLong()
+            inputStream = connection.inputStream
+            outputStream = FileOutputStream(targetFile, append)
+            
+            val buffer = ByteArray(131072) // 128KB buffer
+            var totalRead = if (append) targetFile.length() else 0L
+            val expectedTotal = if (contentLength > 0) totalRead + contentLength else 0L
+            
+            var lastUiUpdateTime = 0L
+            var speedWindowStartTime = android.os.SystemClock.uptimeMillis()
+            var speedWindowStartBytes = totalRead
+            var currentSpeedStr = ""
+            
+            while (kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]?.isActive == true) {
+                val bytesRead = inputStream.read(buffer)
+                if (bytesRead == -1) break
+                outputStream.write(buffer, 0, bytesRead)
+                totalRead += bytesRead
+                
+                val now = android.os.SystemClock.uptimeMillis()
+                val timeDelta = now - speedWindowStartTime
+                if (timeDelta >= 1000) {
+                    val bytesInDelta = totalRead - speedWindowStartBytes
+                    val bytesPerSec = (bytesInDelta * 1000L) / timeDelta.coerceAtLeast(1L)
+                    currentSpeedStr = if (bytesPerSec > 0) formatFileSize(bytesPerSec) + "/s" else ""
+                    speedWindowStartTime = now
+                    speedWindowStartBytes = totalRead
+                }
+                
+                if (now - lastUiUpdateTime > 400 || (expectedTotal > 0 && totalRead >= expectedTotal)) {
+                    lastUiUpdateTime = now
+                    onProgress(totalRead, expectedTotal, currentSpeedStr)
+                }
+            }
+            
+            GeckoDownloadResult.Success(targetFile, totalRead, contentType, expectedTotal)
+        } catch (e: Exception) {
             GeckoDownloadResult.Error(e.message, e)
         } finally {
             try { inputStream?.close() } catch (e: Exception) {}
             try { outputStream?.close() } catch (e: Exception) {}
+            try { connection?.disconnect() } catch (e: Exception) {}
         }
     }
 
