@@ -1233,34 +1233,19 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun isBrowserPremium(): Boolean {
-        if (isPremiumUser()) return true
-        val now = System.currentTimeMillis()
-        if (now < prefs.getLong("pass_browser_expiry", 0L)) return true
-        return false
+        return true
     }
 
     fun isCameraPremium(): Boolean {
-        if (isPremiumUser()) return true
-        val now = System.currentTimeMillis()
-        if (now < prefs.getLong("pass_camera_expiry", 0L)) return true
-        return false
+        return true
     }
 
     fun isThemePremium(theme: AppTheme): Boolean {
-        return when (theme) {
-            AppTheme.OCEAN_BREEZE,
-            AppTheme.SUNSET_ROSE,
-            AppTheme.LAVENDER_MIST,
-            AppTheme.QUANTUM_CYAN -> true
-            else -> false
-        }
+        return false
     }
 
     fun isThemePremiumActive(): Boolean {
-        if (isPremiumUser()) return true
-        val now = System.currentTimeMillis()
-        if (now < prefs.getLong("pass_theme_expiry", 0L)) return true
-        return false
+        return true
     }
 
     fun incrementVaultDownloadUses() {

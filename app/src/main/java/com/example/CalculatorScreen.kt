@@ -1437,9 +1437,6 @@ fun CalculatorTabContent(
             }
         }
         
-        // Native Ad for Calculator (shows when eligible)
-        AdMobNativeAd(viewModel = viewModel)
-
         // Keypad Grid Zone
         val buttons = listOf(
             listOf("C", "+/-", "%", "÷"),
@@ -1475,7 +1472,6 @@ fun CalculatorTabContent(
                             onClick = {
                                 viewModel.triggerCalculatorKeypressEffects(context, char)
                                 viewModel.onCalcKeyPress(char)
-                                AdMobManager.incrementMeaningfulAction()
                             },
                             onLongClick = when {
                                 isEquals && biometricEnabled -> {
@@ -1488,7 +1484,6 @@ fun CalculatorTabContent(
                                     {
                                         viewModel.triggerCalculatorKeypressEffects(context, "=") // Heavy click for delete all
                                         viewModel.onCalcKeyPress("C")
-                                        AdMobManager.incrementMeaningfulAction()
                                     }
                                 }
                                 else -> null
@@ -2988,7 +2983,7 @@ fun VaultTabUnlockedContent(
                     }
                 )
             } else {
-                val isEdgeToEdge = activeSection in listOf("Photos", "Videos", "Documents", "Notes", "Music & Audio", "Password_Generator", "Secure_Voice_Note", "Metadata_Cleaner", "About", "Vault Rewards")
+                val isEdgeToEdge = activeSection in listOf("Photos", "Videos", "Documents", "Notes", "Music & Audio", "Password_Generator", "Secure_Voice_Note", "Metadata_Cleaner", "About")
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -3096,7 +3091,7 @@ fun VaultTabUnlockedContent(
                             }
                         }
                     }
-                } else if (activeSection !in listOf("Photos", "Videos", "Documents", "Notes", "Music & Audio", "Password_Generator", "Secure_Voice_Note", "Metadata_Cleaner", "About", "Vault Rewards")) {
+                } else if (activeSection !in listOf("Photos", "Videos", "Documents", "Notes", "Music & Audio", "Password_Generator", "Secure_Voice_Note", "Metadata_Cleaner", "About")) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -3246,49 +3241,6 @@ fun VaultTabUnlockedContent(
                                     )
                                 }
                             }
-                            if (activeSection == "Home") {
-                                val coins by viewModel.vaultCoins.collectAsStateWithLifecycle()
-                                val dailyLastClaimed by viewModel.dailyRewardLastClaimed.collectAsStateWithLifecycle()
-                                val luckyLastOpened by viewModel.luckyChestLastOpened.collectAsStateWithLifecycle()
-                                val dailyClaimable = System.currentTimeMillis() - dailyLastClaimed >= 24 * 60 * 60 * 1000
-                                val luckyOpenable = System.currentTimeMillis() - luckyLastOpened >= 24 * 60 * 60 * 1000
-                                val rewardAvailable = dailyClaimable || luckyOpenable
-                                
-                                Row(
-                                    modifier = Modifier
-                                        .height(40.dp)
-                                        .clip(RoundedCornerShape(20.dp))
-                                        .background(Color(0xFF161B2B).copy(alpha = 0.95f))
-                                        .border(
-                                            width = 1.dp,
-                                            color = if (rewardAvailable) Color(0xFFFFD600) else Color.White.copy(alpha = 0.15f),
-                                            shape = RoundedCornerShape(20.dp)
-                                        )
-                                        .clickable {
-                                            viewModel.triggerKeypressEffects(context)
-                                            activeSection = "Vault Rewards"
-                                        }
-                                        .padding(horizontal = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Text("🪙", fontSize = 16.sp)
-                                    Text(
-                                        text = "$coins",
-                                        color = if (rewardAvailable) Color(0xFFFFD600) else Color.White,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    if (rewardAvailable) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(6.dp)
-                                                .clip(CircleShape)
-                                                .background(Color(0xFFFFD600))
-                                        )
-                                    }
-                                }
-                            }
                             if (activeSection in listOf("Home", "Photos & Videos", "Documents", "Notes", "Music & Audio", "Explore")) {
                                 IconButton(
                                     onClick = {
@@ -3414,9 +3366,6 @@ fun VaultTabUnlockedContent(
                                 }
                             }
                             
-                            // Native Ad for Dashboard (shows when eligible)
-                            AdMobNativeAd(viewModel = viewModel)
-
                             Text(
                                 text = "STORAGE",
                                 fontSize = 10.sp,
@@ -3963,12 +3912,6 @@ fun VaultTabUnlockedContent(
                         AppLockSection(viewModel = viewModel)
                     }
                 }
-                "Vault Rewards" -> {
-                    VaultRewardsScreen(
-                        viewModel = viewModel,
-                        onBack = { activeSection = "Home" }
-                    )
-                }
                 "Intruder Alerts", "Access Logs", "Monitoring" -> {
                     Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
                         MonitoringSection(
@@ -4405,18 +4348,6 @@ fun VaultTabUnlockedContent(
                         }
 
                         // 2. Main Settings Sections Group
-                        val vaultCoinsVal by viewModel.vaultCoins.collectAsStateWithLifecycle()
-                        CompactSettingsCard(
-                            title = "Vault Coins & Rewards",
-                            subtitle = "$vaultCoinsVal Coins available · Daily Reward & Lucky Chest",
-                            icon = Icons.Default.Star,
-                            iconColor = Color(0xFFFFD600),
-                            onClick = {
-                                viewModel.triggerKeypressEffects(context)
-                                activeSection = "Vault Rewards"
-                            }
-                        )
-
                         Text(
                             text = "SYSTEM SETTINGS",
                             fontSize = 11.sp,
@@ -6778,8 +6709,6 @@ fun VaultTabUnlockedContent(
                     var showAvatarSheet by remember { mutableStateOf(false) }
                     var showBuiltInGrid by remember { mutableStateOf(false) }
                     var showNameDialog by remember { mutableStateOf(false) }
-                    var showPremiumDialog by remember { mutableStateOf(false) }
-                    var devTapCount by remember { mutableStateOf(0) }
                     
                     val displayName = if (ownerName == "Vault Owner" || ownerName.isEmpty()) "Sameer" else ownerName
                     var nameInput by remember { mutableStateOf(displayName) }
@@ -6923,84 +6852,13 @@ fun VaultTabUnlockedContent(
                                 )
                             }
 
-                            // Subtitle and Premium Badge on the same row below the name
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp) // Premium spacing
-                            ) {
-                                Text(
-                                    text = "Vault Owner",
-                                    fontSize = 15.sp,
-                                    color = Color.White.copy(alpha = 0.6f),
-                                    fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.clickable {
-                                        devTapCount++
-                                        if (devTapCount >= 5) {
-                                            devTapCount = 0
-                                            showPremiumDialog = true
-                                            android.widget.Toast.makeText(context, "Developer Mode Enabled: Premium Config Opened", android.widget.Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
-                                )
-                                
-                                // Premium Badge supporting Free / Premium / Lifetime states in Glassmorphism style
-                                val badgeBgColor = when (premiumState) {
-                                    "Premium" -> ThemePurple.copy(alpha = 0.25f)
-                                    "Lifetime" -> Color(0xFFFFA000).copy(alpha = 0.25f)
-                                    else -> Color.White.copy(alpha = 0.08f) // elegant glass for Free
-                                }
-                                
-                                val badgeBorderColor = when (premiumState) {
-                                    "Premium" -> ThemePurple.copy(alpha = 0.5f)
-                                    "Lifetime" -> Color(0xFFFFA000).copy(alpha = 0.6f)
-                                    else -> Color.White.copy(alpha = 0.25f) // clean white glass border
-                                }
-                                
-                                val badgeTextColor = when (premiumState) {
-                                    "Premium" -> ThemePurple
-                                    "Lifetime" -> Color(0xFFFFB300)
-                                    else -> Color.White.copy(alpha = 0.9f)
-                                }
-                                
-                                val badgeText = premiumState.uppercase()
-                                
-                                Box(
-                                    modifier = Modifier
-                                        .clip(CircleShape) // Rounded capsule design
-                                        .background(badgeBgColor)
-                                        .border(1.dp, badgeBorderColor, CircleShape)
-                                        .clickable {
-                                            if (premiumState == "Lifetime") {
-                                                android.widget.Toast.makeText(context, "Lifetime status is active!", android.widget.Toast.LENGTH_SHORT).show()
-                                            } else if (premiumState == "Premium") {
-                                                android.widget.Toast.makeText(context, "Premium status is active!", android.widget.Toast.LENGTH_SHORT).show()
-                                            } else {
-                                                android.widget.Toast.makeText(context, "Premium is coming soon!", android.widget.Toast.LENGTH_SHORT).show()
-                                            }
-                                        }
-                                        .padding(horizontal = 12.dp, vertical = 6.dp), // Premium spacing
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Star,
-                                            contentDescription = "Badge star",
-                                            tint = badgeTextColor,
-                                            modifier = Modifier.size(12.dp)
-                                        )
-                                        Text(
-                                            text = badgeText,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = badgeTextColor,
-                                            letterSpacing = 1.sp
-                                        )
-                                    }
-                                }
-                            }
+                            // Subtitle
+                            Text(
+                                text = "Vault Owner",
+                                fontSize = 15.sp,
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontWeight = FontWeight.Medium
+                            )
                         }
 
                         // --- Vault Identity Card Section (Phase 9B) ---
@@ -7043,11 +6901,7 @@ fun VaultTabUnlockedContent(
                                         color = Color.White.copy(alpha = 0.4f),
                                         letterSpacing = 1.8.sp
                                     )
-                                    val rankText = when (premiumState) {
-                                        "Premium" -> "Guardian"
-                                        "Lifetime" -> "Legend"
-                                        else -> "Explorer"
-                                    }
+                                    val rankText = "Guardian"
                                     Text(
                                         text = rankText,
                                         fontSize = 20.sp,
@@ -7067,11 +6921,7 @@ fun VaultTabUnlockedContent(
                                         color = Color.White.copy(alpha = 0.4f),
                                         letterSpacing = 1.8.sp
                                     )
-                                    val auraText = when (premiumState) {
-                                        "Premium" -> "999"
-                                        "Lifetime" -> "∞"
-                                        else -> "99"
-                                    }
+                                    val auraText = "∞"
                                     Text(
                                         text = auraText,
                                         fontSize = 32.sp,
@@ -7146,47 +6996,6 @@ fun VaultTabUnlockedContent(
                                         color = Color.White.copy(alpha = 0.5f)
                                     )
                                 }
-                            }
-
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            // Section 4: Premium CTA Button
-                            val ctaText = when (premiumState) {
-                                "Premium" -> "Manage Plan"
-                                "Lifetime" -> "Lifetime Activated"
-                                else -> "Premium Coming Soon"
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(44.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(
-                                        androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                            colors = listOf(
-                                                Color(0xFF4C1D95),
-                                                Color(0xFF6D28D9)
-                                            )
-                                        )
-                                    )
-                                    .clickable {
-                                        if (premiumState == "Lifetime") {
-                                            android.widget.Toast.makeText(context, "Lifetime Vault status is fully activated!", android.widget.Toast.LENGTH_SHORT).show()
-                                        } else if (premiumState == "Premium") {
-                                            android.widget.Toast.makeText(context, "Premium status is active!", android.widget.Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            android.widget.Toast.makeText(context, "Premium is coming soon!", android.widget.Toast.LENGTH_SHORT).show()
-                                        }
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = ctaText,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    letterSpacing = 0.5.sp
-                                )
                             }
                         }
 
@@ -7759,154 +7568,6 @@ fun VaultTabUnlockedContent(
                         }
                     }
 
-                    // --- Material 3 Dialog for Premium Upgrading ---
-                    if (showPremiumDialog || viewModel.showPremiumUpgradeDialog) {
-                        AlertDialog(
-                            onDismissRequest = { 
-                                showPremiumDialog = false 
-                                viewModel.showPremiumUpgradeDialog = false
-                            },
-                            containerColor = Color(0xFF161B2B),
-                            title = {
-                                Text(
-                                    text = "Upgrade Premium Status",
-                                    color = Color.White,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            },
-                            text = {
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        text = "Experience advanced vault styles and exclusive benefits.",
-                                        color = Color.White.copy(alpha = 0.7f),
-                                        fontSize = 14.sp
-                                    )
-                                    
-                                    // Option 1: Free
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(
-                                                if (premiumState == "Free") Color.White.copy(alpha = 0.12f)
-                                                else Color.White.copy(alpha = 0.04f)
-                                            )
-                                            .border(
-                                                width = 1.dp,
-                                                color = if (premiumState == "Free") Color.White.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.15f),
-                                                shape = RoundedCornerShape(12.dp)
-                                            )
-                                            .clickable {
-                                                viewModel.setPremiumState("Free")
-                                                showPremiumDialog = false
-                                                viewModel.showPremiumUpgradeDialog = false
-                                                android.widget.Toast.makeText(context, "Status set to Free Vault!", android.widget.Toast.LENGTH_SHORT).show()
-                                            }
-                                            .padding(16.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Star,
-                                            contentDescription = null,
-                                            tint = Color.White.copy(alpha = 0.5f),
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Column {
-                                            Text("Free Standard Vault", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                            Text("Basic security style essentials", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
-                                        }
-                                    }
-
-                                    // Option 2: Premium
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(
-                                                if (premiumState == "Premium") ThemePurple.copy(alpha = 0.15f)
-                                                else Color.White.copy(alpha = 0.04f)
-                                            )
-                                            .border(
-                                                width = 1.dp,
-                                                color = if (premiumState == "Premium") ThemePurple else Color.White.copy(alpha = 0.15f),
-                                                shape = RoundedCornerShape(12.dp)
-                                            )
-                                            .clickable {
-                                                viewModel.setPremiumState("Premium")
-                                                showPremiumDialog = false
-                                                viewModel.showPremiumUpgradeDialog = false
-                                                android.widget.Toast.makeText(context, "Upgraded to Premium Vault!", android.widget.Toast.LENGTH_SHORT).show()
-                                            }
-                                            .padding(16.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Star,
-                                            contentDescription = null,
-                                            tint = ThemePurple,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Column {
-                                            Text("Premium Vault Pro", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                            Text("Aesthetic Glassmorphism theme style", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
-                                        }
-                                    }
-
-                                    // Option 3: Lifetime
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(
-                                                if (premiumState == "Lifetime") Color(0xFFFFA000).copy(alpha = 0.15f)
-                                                else Color.White.copy(alpha = 0.04f)
-                                            )
-                                            .border(
-                                                width = 1.dp,
-                                                color = if (premiumState == "Lifetime") Color(0xFFFFA000) else Color.White.copy(alpha = 0.15f),
-                                                shape = RoundedCornerShape(12.dp)
-                                            )
-                                            .clickable {
-                                                viewModel.setPremiumState("Lifetime")
-                                                showPremiumDialog = false
-                                                viewModel.showPremiumUpgradeDialog = false
-                                                android.widget.Toast.makeText(context, "Upgraded to Lifetime Gold VIP!", android.widget.Toast.LENGTH_SHORT).show()
-                                            }
-                                            .padding(16.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Star,
-                                            contentDescription = null,
-                                            tint = Color(0xFFFFB300),
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Column {
-                                            Text("Lifetime Gold VIP", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                            Text("Full luxury gold accent VIP badge style", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
-                                        }
-                                    }
-                                }
-                            },
-                            confirmButton = {
-                                TextButton(
-                                    onClick = { 
-                                        showPremiumDialog = false 
-                                        viewModel.showPremiumUpgradeDialog = false
-                                    }
-                                ) {
-                                    Text("Dismiss", color = ThemePurple, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        )
-                    }
                 }
                 else -> {
                     if (activeSection.startsWith("Placeholder_")) {

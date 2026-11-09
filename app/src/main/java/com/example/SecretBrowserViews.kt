@@ -5258,10 +5258,6 @@ fun PrivateBrowserSection(
                 }
             }
 
-            // Banner ad at the bottom of the private browser (shows when eligible)
-            if (activeTab?.isFullScreen != true) {
-                AdMobBannerAd(viewModel = viewModel)
-            }
         }
 
         if (showMenuClearBrowsingDataDialog) {
